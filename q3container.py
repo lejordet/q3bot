@@ -21,6 +21,7 @@ logging.getLogger("").addHandler(console)
 
 logger = logging.getLogger(__name__)
 
+
 def parse_config():
     cfg = dict()
     with open("secrets.ini", "rt") as f:
@@ -28,6 +29,7 @@ def parse_config():
             k, v = line.strip().split("=")
             cfg[k] = v
     return cfg
+
 
 CONFIG = parse_config()
 
@@ -37,7 +39,7 @@ DCK = docker.from_env()
 SHUTDOWN = False
 
 
-MEANS_OF_DEATH = {
+MEANS_OF_DEATH = {  # For reference/future use
     0: "MOD_UNKNOWN",
     1: "MOD_SHOTGUN",
     2: "MOD_GAUNTLET",

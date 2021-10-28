@@ -8,6 +8,7 @@ import discord
 import paho.mqtt.client as mqtt
 import pytz
 from dateutil.parser import parse
+from xrcon.client import XRcon
 
 logging.basicConfig(
     filename="discord.log",
@@ -41,6 +42,13 @@ class Q3Client(discord.Client):
         self.mqtt.on_log = self.on_mqtt_log
 
         self.mqtt.connect(self.cfg["mqtt"])
+
+        self.rcon = XRcon(
+            self.cfg["rconip"], 27960, self.cfg["rconpass"], secure_rcon=0, timeout=5
+        )
+        self.rcon.connect()
+
+        self.game = discord.Game("Quake3E")
         # an attribute we can access from our task
         self.clients = dict()
         self.msgs = deque()
@@ -56,6 +64,7 @@ class Q3Client(discord.Client):
         logger.info(self.user.name)
         logger.info(self.user.id)
         logger.info("------")
+        await self.change_presence(status=discord.Status.online, activity=self.game)
 
     def on_mqtt_log(client, userdata, level, buff):
         console.debug(buff)
@@ -105,8 +114,8 @@ class Q3Client(discord.Client):
             self.clients = dict()
         elif tokens[2] == "Exit":
             self.msgs.append(
-                f"Game ended due to {payload['reason'].lower()}"
-                "at {ts:%Y-%m-%d %H:%M}"
+                f"Game ended due to {payload['reason'].lower()[-1]} "
+                f"at {ts:%Y-%m-%d %H:%M}"
             )
             self.current_game = dict()
         elif tokens[2] == "Score":
@@ -147,9 +156,9 @@ class Q3Client(discord.Client):
                 # New game!
                 map = self.current_game.get("mapname", "<unknown map>")
                 self.msgs.append(
-                    f"Q3E server {self.cfg['servername']}:"
-                    f"New game starting on {map}"
-                    f" at {ts:%Y-%m-%d %H:%M}!"
+                    f"Q3E server {self.cfg['servername']}: "
+                    f"New game starting on {map} "
+                    f"at {ts:%Y-%m-%d %H:%M}!"
                 )
             cli = self.clients.setdefault(clidx, dict())
             prev_name = cli.get("n")
@@ -187,9 +196,8 @@ class Q3Client(discord.Client):
 
     async def my_background_task(self):
         await self.wait_until_ready()
-        print(self.cfg)
         channel = self.get_channel(int(self.cfg["channel"]))
-        print(channel)
+
         while not self.is_closed():
             msg = None
             try:
@@ -199,6 +207,14 @@ class Q3Client(discord.Client):
 
             if msg is not None:
                 await channel.send(msg)
+            else:
+                if "mapname" not in self.current_game:
+                    status_ = self.rcon.getstatus()
+                    status = {
+                        k.decode("utf-8"): v.decode("utf-8") for k, v in status_.items()
+                    }
+                    self.current_game.update(status)
+                    await channel.send(f"Playing on {status['mapname']}")
 
 
 def parse_config():

@@ -1,5 +1,6 @@
 paho-mqtt
-discord-py
+discord.py
 docker
 python-dateutil
 pytz
+xrcon
