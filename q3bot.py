@@ -1,30 +1,35 @@
-import discord
-from dateutil.parser import parse
 import json
-import pytz
-import paho.mqtt.client as mqtt
 import logging
-from collections import deque
-from asyncio import sleep
 import random
+from asyncio import sleep
+from collections import deque
 
-logging.basicConfig(filename="discord.log", level=logging.INFO, 
-     format= '[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s',
-     datefmt='%H:%M:%S')
+import discord
+import paho.mqtt.client as mqtt
+import pytz
+from dateutil.parser import parse
+
+logging.basicConfig(
+    filename="discord.log",
+    level=logging.INFO,
+    format="[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S",
+)
 # set up logging to console
 console = logging.StreamHandler()
 console.setLevel(logging.DEBUG)
 # set a format which is simpler for console use
-formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
+formatter = logging.Formatter("%(name)-12s: %(levelname)-8s %(message)s")
 console.setFormatter(formatter)
 # add the handler to the root logger
-logging.getLogger('').addHandler(console)
+logging.getLogger("").addHandler(console)
 
 logger = logging.getLogger(__name__)
 
 TZ = pytz.timezone("Europe/Oslo")
 IX_WORLD = "1022"
-STYLE_EMOJI = ['👻', '💀', '☠️', '😵', '🤯', '🤬', '🤘', '🎯', '💣', '🍖']
+STYLE_EMOJI = ["👻", "💀", "☠️", "😵", "🤯", "🤬", "🤘", "🎯", "💣", "🍖"]
+
 
 class Q3Client(discord.Client):
     def __init__(self, *args, **kwargs):
@@ -47,34 +52,31 @@ class Q3Client(discord.Client):
         self.mqtt.loop_start()
 
     async def on_ready(self):
-        logger.info('Logged in as')
+        logger.info("Logged in as")
         logger.info(self.user.name)
         logger.info(self.user.id)
-        logger.info('------')
+        logger.info("------")
 
-    def on_mqtt_log(client,userdata,level,buff):
+    def on_mqtt_log(client, userdata, level, buff):
         console.debug(buff)
 
     def on_mqtt_connect(self, client, userdata, flags, rc):
-        logger.info("Connected with result code "+str(rc))
+        logger.info("Connected with result code " + str(rc))
         try:
             client.subscribe("q3server/#", qos=2)
         except Exception as details:
             logger.exception("Subscription failed", exc_info=details)
 
-
     def on_mqtt_message(self, client, userdata, msg):
         tokens = msg.topic.split("/")
         if tokens[0] != "q3server":
-            logger.info("q3client", msg.topic+" "+str(msg.payload))
+            logger.info("q3client", msg.topic + " " + str(msg.payload))
             return True
-    
 
         if tokens[1] != "log":
             return True
 
-
-        payload = msg.payload.decode('utf-8')
+        payload = msg.payload.decode("utf-8")
         try:
             payload = json.loads(payload)
         except json.decoder.JSONDecodeError:
@@ -83,7 +85,7 @@ class Q3Client(discord.Client):
 
         logstr = f"{msg.topic} {payload}"
         logger.info(logstr)
-        
+
         ts = parse(payload["timestamp"]).astimezone(TZ)
         # This is the action!
         if tokens[2] == "ShutdownGame":
@@ -92,21 +94,31 @@ class Q3Client(discord.Client):
             self.msgs.append(f"Server restarting at {ts:%Y-%m-%d %H:%M}!")
         elif tokens[2] == "InitGame":
             if any(self.clients):  # Only if players are connected
-                self.msgs.append(f"New game starting on {payload['mapname']} at {ts:%Y-%m-%d %H:%M}!")
+                self.msgs.append(
+                    f"New game starting on {payload['mapname']} at {ts:%Y-%m-%d %H:%M}!"
+                )
             self.current_game.update(payload)
-            self.current_game["fraglimit"] = int(self.current_game.get("fraglimit", 100))
+            self.current_game["fraglimit"] = int(
+                self.current_game.get("fraglimit", 100)
+            )
 
             self.clients = dict()
         elif tokens[2] == "Exit":
-            self.msgs.append(f"Game ended due to {payload['reason'].lower()} at {ts:%Y-%m-%d %H:%M}")
+            self.msgs.append(
+                f"Game ended due to {payload['reason'].lower()}"
+                "at {ts:%Y-%m-%d %H:%M}"
+            )
             self.current_game = dict()
         elif tokens[2] == "Score":
             self.msgs.append(f" > {payload['n']}: {payload['score']} kills")
         elif tokens[2] == "Kill":
             if payload["method"] == "MOD_LIGHTNING":
-                self.msgs.append(f"{payload['n']} killed {payload['targetn']} with ⚡ SHÆÆÆÆÆÆÆÆÆÆÆÆÆÆFT! ⚡")
+                self.msgs.append(
+                    f"{payload['n']} killed {payload['targetn']}"
+                    "with ⚡ SHÆÆÆÆÆÆÆÆÆÆÆÆÆÆFT! ⚡"
+                )
 
-            if payload["clientid"] == IX_WORLD:   # falling damage, etc.
+            if payload["clientid"] == IX_WORLD:  # falling damage, etc.
                 clidx = payload["targetid"]
             else:
                 clidx = payload["clientid"]
@@ -133,24 +145,43 @@ class Q3Client(discord.Client):
             clidx = payload["clientid"]
             if not any(self.clients):
                 # New game!
-                self.msgs.append(f"Q3E server circuitry.no: New game starting on {self.current_game.get('mapname', '<unknown map>')} at {ts:%Y-%m-%d %H:%M}!")
+                map = self.current_game.get("mapname", "<unknown map>")
+                self.msgs.append(
+                    f"Q3E server {self.cfg['servername']}:"
+                    f"New game starting on {map}"
+                    f" at {ts:%Y-%m-%d %H:%M}!"
+                )
             cli = self.clients.setdefault(clidx, dict())
-            prev_name = cli.get('n')
+            prev_name = cli.get("n")
             cli.update(payload)
             if payload["action"] == "Disconnect":
                 del self.clients[clidx]
-                serverstate = f"{len(self.clients)} players online" if any(self.clients) else "server empty"
-                self.msgs.append(f"{cli.get('n', '<unknown>')} disconnected, {serverstate}")
+                serverstate = (
+                    f"{len(self.clients)} players online"
+                    if any(self.clients)
+                    else "server empty"
+                )
+                self.msgs.append(
+                    f"{cli.get('n', '<unknown>')} disconnected, {serverstate}"
+                )
             elif payload["action"] == "Begin":
                 pass  # we trigger on receiving the name instead
             elif payload["action"] == "Connect":
                 pass
             elif payload["action"] == "InfoChanged":
-                if prev_name is not None and prev_name != cli['n']:
-                    self.msgs.append(f"{prev_name} changed name to {cli.get('n', '<unknown>')}")
+                if prev_name is not None and prev_name != cli["n"]:
+                    self.msgs.append(
+                        f"{prev_name} changed name to {cli.get('n', '<unknown>')}"
+                    )
             if prev_name is None and "n" in payload:
-                serverstate = f"{len(self.clients)} players online" if any(self.clients) else "server empty"
-                self.msgs.append(f"{cli.get('n', '<unknown>')} joined the game, {serverstate}")
+                serverstate = (
+                    f"{len(self.clients)} players online"
+                    if any(self.clients)
+                    else "server empty"
+                )
+                self.msgs.append(
+                    f"{cli.get('n', '<unknown>')} joined the game, {serverstate}"
+                )
 
         return True
 

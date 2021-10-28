@@ -1,62 +1,75 @@
-import docker
-from dateutil.parser import parse
-import paho.mqtt.client as mqtt
-import logging
 import json
+import logging
 
+import docker
+import paho.mqtt.client as mqtt
 
-logging.basicConfig(filename="mqtt.log", level=logging.INFO, 
-     format= '[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s',
-     datefmt='%H:%M:%S')
+logging.basicConfig(
+    filename="mqtt.log",
+    level=logging.INFO,
+    format="[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S",
+)
 # set up logging to console
 console = logging.StreamHandler()
 console.setLevel(logging.DEBUG)
 # set a format which is simpler for console use
-formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
+formatter = logging.Formatter("%(name)-12s: %(levelname)-8s %(message)s")
 console.setFormatter(formatter)
 # add the handler to the root logger
-logging.getLogger('').addHandler(console)
+logging.getLogger("").addHandler(console)
 
 logger = logging.getLogger(__name__)
 
+def parse_config():
+    cfg = dict()
+    with open("secrets.ini", "rt") as f:
+        for line in f.readlines():
+            k, v = line.strip().split("=")
+            cfg[k] = v
+    return cfg
 
-MQTTSERVER = "localhost"
+CONFIG = parse_config()
+
+
+MQTTSERVER = CONFIG["mqtt"]
 DCK = docker.from_env()
 SHUTDOWN = False
 
 
 MEANS_OF_DEATH = {
-    0:"MOD_UNKNOWN",
-    1:"MOD_SHOTGUN",
-    2:"MOD_GAUNTLET",
-    3:"MOD_MACHINEGUN",
-    4:"MOD_GRENADE",
-    5:"MOD_GRENADE_SPLASH",
-    6:"MOD_ROCKET",
-    7:"MOD_ROCKET_SPLASH",
-    8:"MOD_PLASMA",
-    9:"MOD_PLASMA_SPLASH",
-    10:"MOD_RAILGUN",
-    11:"MOD_LIGHTNING",
-    12:"MOD_BFG",
-    13:"MOD_BFG_SPLASH",
-    14:"MOD_WATER",
-    15:"MOD_SLIME",
-    16:"MOD_LAVA",
-    17:"MOD_CRUSH",
-    18:"MOD_TELEFRAG",
-    19:"MOD_FALLING",
-    20:"MOD_SUICIDE",
-    21:"MOD_TARGET_LASER",
-    22:"MOD_TRIGGER_HURT",
-    23:"MOD_GRAPPLE"
+    0: "MOD_UNKNOWN",
+    1: "MOD_SHOTGUN",
+    2: "MOD_GAUNTLET",
+    3: "MOD_MACHINEGUN",
+    4: "MOD_GRENADE",
+    5: "MOD_GRENADE_SPLASH",
+    6: "MOD_ROCKET",
+    7: "MOD_ROCKET_SPLASH",
+    8: "MOD_PLASMA",
+    9: "MOD_PLASMA_SPLASH",
+    10: "MOD_RAILGUN",
+    11: "MOD_LIGHTNING",
+    12: "MOD_BFG",
+    13: "MOD_BFG_SPLASH",
+    14: "MOD_WATER",
+    15: "MOD_SLIME",
+    16: "MOD_LAVA",
+    17: "MOD_CRUSH",
+    18: "MOD_TELEFRAG",
+    19: "MOD_FALLING",
+    20: "MOD_SUICIDE",
+    21: "MOD_TARGET_LASER",
+    22: "MOD_TRIGGER_HURT",
+    23: "MOD_GRAPPLE",
 }
+
 
 def handle_log():
     q3 = DCK.containers.get("quake3e_ded")
     logger.info(f"Following container {q3}")
     for line in q3.logs(tail=100, follow=True, stream=True, timestamps=True):
-        yield line.decode('utf-8').strip()
+        yield line.decode("utf-8").strip()
 
 
 def parse_combined_line(line):
@@ -75,19 +88,19 @@ def parse_scores(line):
     i = 0
     while i < len(line):
         if line[i] == "score:":
-            obj["score"] = int(line[i+1])
+            obj["score"] = int(line[i + 1])
         elif line[i] == "ping:":
-            obj["ping"] = int(line[i+1])
+            obj["ping"] = int(line[i + 1])
         elif line[i] == "client:":
-            obj["clientid"] = line[i+1]
-            obj["n"] = line[i+2]
+            obj["clientid"] = line[i + 1]
+            obj["n"] = line[i + 2]
         i += 1
 
     return obj
 
+
 def parse_line(line):
     tokens = line.split(" ")
-    ts = parse(tokens[0])
     buildobj = {"timestamp": tokens[0], "line": line}
     if tokens[1][-1] != ":":
         buildobj["action"] = "info"
@@ -101,7 +114,11 @@ def parse_line(line):
         return buildobj
 
     idx = tokens[2]  # might not be an index, we'll figure it out
-    if action in ("Item", "Hunk_Clear", "IP",):
+    if action in (
+        "Item",
+        "Hunk_Clear",
+        "IP",
+    ):
         return None
     elif action == "ClientConnect":
         buildobj["action"] = "Client"
@@ -142,17 +159,18 @@ def parse_line(line):
         kval["reason"] = " ".join(tokens[2:])
     elif action == "Server":
         kval["mapname"] = idx
-    elif action in ("ShutdownGame", ):  # other accepted items
+    elif action in ("ShutdownGame",):  # other accepted items
         pass
     else:
         logger.debug(f"Not sending {action}")
         return None
 
-    buildobj["content"] = json.dumps(kval).encode('utf-8')
+    buildobj["content"] = json.dumps(kval).encode("utf-8")
     return buildobj
 
+
 def on_connect(client, userdata, flags, rc):
-    logger.info("Connected with result code "+str(rc))
+    logger.info("Connected with result code " + str(rc))
     client.subscribe("q3bot/#")
 
 
@@ -160,17 +178,17 @@ def on_message(client, userdata, msg):
     global SHUTDOWN
     tokens = msg.topic.split("/")
     if tokens[0] != "q3bot":
-        logger.info("q3bot", msg.topic+" "+str(msg.payload))
+        logger.info("q3bot", msg.topic + " " + str(msg.payload))
         return
-    
+
     if tokens[1] == "shutdown":
         logger.info("Got shutdown signal")
         SHUTDOWN = True
     else:
-        logger.info("q3bot", msg.topic+" "+str(msg.payload))
+        logger.info("q3bot", msg.topic + " " + str(msg.payload))
 
 
-def on_log(client,userdata,level,buff):
+def on_log(client, userdata, level, buff):
     console.debug(buff)
 
 
@@ -184,7 +202,7 @@ def main():
     src.loop_start()
     src.publish("q3server/status", "hello", retain=True)
     src.will_set("q3server/status", "offline", retain=True)
-    i = 0
+
     for line in handle_log():
         obj = parse_line(line)
         if obj is None:
