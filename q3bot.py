@@ -86,6 +86,20 @@ MAP_ROTATIONS = {
     "large": ["q3dm6", "q3dm7", "q3dm8", "q3dm9", "q3dm18"],
 }
 
+BOTS = [
+    "anarki",
+    "angel",
+    "biker",
+    "bitterman",
+    "bones",
+    "cadavre",
+    "crash",
+    "daemia",
+    "sarge",
+    "visor",
+]
+SUFFIXES = ["bot", ".com", "wtf", "test", "_yep"]
+
 
 class Q3Client(commands.Bot):
     def __init__(self, *args, **kwargs):
@@ -106,7 +120,7 @@ class Q3Client(commands.Bot):
         self.mqtt.connect(self.cfg["mqtt"])
 
         self.rcon = XRcon(
-            self.cfg["rconip"], 27960, self.cfg["rconpass"], secure_rcon=0, timeout=5
+            self.cfg["rconip"], 27960, self.cfg["rconpass"], secure_rcon=0, timeout=1
         )
         self.rcon.connect()
 
@@ -119,6 +133,8 @@ class Q3Client(commands.Bot):
 
         self.current_game = dict()
 
+        self.bot_skill = int(self.cfg.get("bot_skill", 4))
+        self.bots_active = False
         self.add_commands()
 
         self.mqtt.loop_start()
@@ -130,20 +146,78 @@ class Q3Client(commands.Bot):
         logger.info("------")
         await self.change_presence(status=discord.Status.online, activity=self.game)
 
-    def ensure_status(self):
-        if "mapname" not in self.current_game:
-            status_ = self.rcon.getstatus()[0]
+    def ensure_status(self, force=False):
+        if "mapname" not in self.current_game or force:
+            status_, players = self.rcon.getstatus()
             logger.info(status_)
             status = {k.decode("utf-8"): v.decode("utf-8") for k, v in status_.items()}
             self.current_game.update(status)
             logger.info(f"rcon> fetched mapname {status['mapname']}")
+            if len(players) < len(self.clients):  # we probably have too many bots!
+                # try to match names
+                names = [p.name.decode("utf-8") for p in players]
+
+                logger.info(
+                    f"Mismatch in player count, we had {len(self.clients)} "
+                    + f"online, but server reports {len(players)}"
+                )
+
+                deleteix = list()
+                for ix, cl in self.clients.items():
+                    if cl.get("n", "<<<<<deleteme>>>>") not in names:
+                        logger.info(f" > {cl['n']} as disappeared at some point")
+                        deleteix.append(ix)
+                for ix in deleteix:
+                    del self.clients[ix]
+
+    def remove_bots(self):
+        logging.info(">>> kick allbots")
+        self.rcon.execute("kick allbots")
+
+        # Check that we got rid of them!
+        self.ensure_status(True)
+        self.bots_active = False
+
+    def add_bots(self, count=1):
+        """Adds some bots
+
+        Args:
+            count: Number of bots to add
+        """
+        added = list()
+        for _ in range(count):
+            bot = random.choice(BOTS)
+            # suffix = random.choice(SUFFIXES)
+            # botname = f"{bot.capitalize()}{suffix}"
+            logging.info(f"Adding {bot}")
+            self.rcon.execute(f"addbot {bot} {self.bot_skill}")
+            added.append(bot)
+        self.ensure_status(True)
+        self.bots_active = True
+        return added
+
+    def handle_autobots(self, playercount, joining):
+        if self.cfg["autobots"] != "roll out":
+            return list()
+
+        if playercount in (0, 1) and not joining and self.bots_active:
+            self.remove_bots()
+            return 0
+        elif playercount == 1 and joining and not self.bots_active:
+            self.add_bots(1)
+            return 2
+        elif playercount > 2 and joining and self.bots_active:
+            self.remove_bots()
+            return 2
+
+        return list()  # no messages defined yet
 
     def add_commands(self):
         @self.command(name="status", pass_context=True)
         async def status(ctx):
             """See who's playing and where"""
             logger.info(f"status requested: {ctx}")
-            self.ensure_status()
+            self.ensure_status(True)
             await ctx.channel.send(
                 f"status: {len(self.clients)} players on "
                 f"{self.current_game['mapname']}"
@@ -151,7 +225,7 @@ class Q3Client(commands.Bot):
             for _, cli in self.clients.items():
                 await ctx.channel.send(
                     f"> {cli.get('n', '<unknown>')}: "
-                    f"{cli.get('running_score', '??')} kills"
+                    f"{cli.get('running_score', '0?')} kills"
                 )
 
         @self.command(name="maps", pass_context=True)
@@ -176,6 +250,23 @@ class Q3Client(commands.Bot):
                 randomize: Shuffle the maps in the rotation (y/n)
             """
             await self.set_map_rotation(rotations, immediate, randomize)
+
+        @self.command(name="addbots", pass_context=True)
+        async def addbots(ctx, count: int = 1):
+            """Add bots
+
+            Args:
+                count: Number of bots
+            """
+            bots = self.add_bots(count)
+            pl_ = "Bots" if len(bots) != 1 else "Bot"
+            await ctx.channel.send(f"{pl_} added: {', '.join(bots)}")
+
+        @self.command(name="killbots", pass_context=True)
+        async def killbots(ctx):
+            """Kill all bots"""
+            self.remove_bots()
+            await ctx.channel.send("Removed all bots")
 
         # self.add_command(status)
         # self.add_command(maps)
@@ -292,11 +383,11 @@ class Q3Client(commands.Bot):
             cli.update(payload)
             if payload["action"] == "Disconnect":
                 del self.clients[clidx]
+                clicount = len(self.clients)
                 serverstate = (
-                    f"{len(self.clients)} players online"
-                    if any(self.clients)
-                    else "server empty"
+                    f"{clicount} players online" if clicount > 0 else "server empty"
                 )
+                clicount = self.handle_autobots(clicount, False)
                 self.msgs.append(
                     f"{cli.get('n', '<unknown>')} disconnected, {serverstate}"
                 )
@@ -310,11 +401,11 @@ class Q3Client(commands.Bot):
                         f"{prev_name} changed name to {cli.get('n', '<unknown>')}"
                     )
             if prev_name is None and "n" in payload:
+                clicount = len(self.clients)
                 serverstate = (
-                    f"{len(self.clients)} players online"
-                    if any(self.clients)
-                    else "server empty"
+                    f"{clicount} players online" if clicount > 0 else "server empty"
                 )
+                clicount = self.handle_autobots(clicount, True)
                 self.msgs.append(
                     f"{cli.get('n', '<unknown>')} joined the game, {serverstate}"
                 )
@@ -356,7 +447,8 @@ class Q3Client(commands.Bot):
 
         items, immediate = generate_map_rotation_cmds(rotaname_, rota)
         await channel.send(f"> {', '.join(rota)}")
-        self.rcon.execute("; ".join(items))
+        for item in items:
+            self.rcon.execute(item)
 
         if not changemap:
             immediate = f"set nextmap {immediate}"
