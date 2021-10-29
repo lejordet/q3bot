@@ -70,7 +70,7 @@ MEANS_OF_DEATH = {  # For reference/future use
 def handle_log():
     q3 = DCK.containers.get("quake3e_ded")
     logger.info(f"Following container {q3}")
-    for line in q3.logs(tail=100, follow=True, stream=True, timestamps=True):
+    for line in q3.logs(tail=0, follow=True, stream=True, timestamps=True):
         yield line.decode("utf-8").strip()
 
 
@@ -112,6 +112,7 @@ def parse_line(line):
 
     kval = {"timestamp": tokens[0], "line": line}
     buildobj["action"] = action
+    buildobj["content"] = json.dumps(kval)  # dummy value, to ensure this is set
     if len(tokens) < 3:
         return buildobj
 
@@ -161,8 +162,6 @@ def parse_line(line):
         kval["reason"] = " ".join(tokens[2:])
     elif action == "Server":
         kval["mapname"] = idx
-    elif action in ("ShutdownGame",):  # other accepted items
-        pass
     else:
         logger.debug(f"Not sending {action}")
         return None
