@@ -305,7 +305,7 @@ class Q3Client(commands.Bot):
         if tokens[2] == "ShutdownGame":
             self.clients = dict()
             self.current_game = dict()
-            self.msgs.append(f"Server restarting at {ts:%Y-%m-%d %H:%M}!")
+            logger.info(f"Server restarting at {ts:%Y-%m-%d %H:%M}!")
         elif tokens[2] == "InitGame":
             if any(self.clients):  # Only if players are connected
                 self.msgs.append(
@@ -318,10 +318,11 @@ class Q3Client(commands.Bot):
 
             self.clients = dict()
         elif tokens[2] == "Exit":
-            self.msgs.append(
-                f"Game ended due to {payload['reason'].lower()[:-1]} "
-                f"at {ts:%Y-%m-%d %H:%M}"
-            )
+            if any(self.clients):  # Only if players are connected
+                self.msgs.append(
+                    f"Game ended due to {payload['reason'].lower()[:-1]} "
+                    f"at {ts:%Y-%m-%d %H:%M}"
+                )
             self.current_game = dict()
         elif tokens[2] == "Score":
             self.msgs.append(f" > {payload['n']}: {payload['score']} kills")
