@@ -118,7 +118,10 @@ class Q3LogParse(object):
 
     def __str__(self):
         output = StringIO()
-        output.write(f"**{len(self.games)}** games recorded, _{len(self.player_kills)}_ players\n")
+        output.write(
+            f"**{len(self.games)}** games recorded,"
+            f"_{len(self.player_kills)}_ players\n"
+        )
 
         winners_ = dict(
             sorted(self.player_wins.items(), key=operator.itemgetter(1), reverse=True)
@@ -127,7 +130,13 @@ class Q3LogParse(object):
 
         for winner, wins in winners_.items():
             output.write(f"**{winner}**: {wins} wins\n")
-            targets_ = dict(sorted(self.player_kills[winner].items(), key=operator.itemgetter(1), reverse=True))
+            targets_ = dict(
+                sorted(
+                    self.player_kills[winner].items(),
+                    key=operator.itemgetter(1),
+                    reverse=True,
+                )
+            )
             i = 1
             for target, kills in targets_.items():
                 output.write(f" {i}) {target}: _{kills}_ kills\n")
@@ -135,7 +144,13 @@ class Q3LogParse(object):
 
         for n in non_winners_:
             output.write(f"**{n}**\n")
-            targets_ = dict(sorted(self.player_kills[n].items(), key=operator.itemgetter(1), reverse=True))
+            targets_ = dict(
+                sorted(
+                    self.player_kills[n].items(),
+                    key=operator.itemgetter(1),
+                    reverse=True,
+                )
+            )
             i = 1
             for target, kills in targets_.items():
                 output.write(f" {i}) {target}: _{kills}_ kills\n")
