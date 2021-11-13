@@ -1,6 +1,7 @@
 import json
 import logging
 import operator
+from io import StringIO
 
 import redis
 from dateutil.parser import parse
@@ -116,14 +117,35 @@ class Q3LogParse(object):
         return True
 
     def __str__(self):
+        output = StringIO()
+        output.write(f"**{len(self.games)}** games recorded, _{len(self.player_kills)}_ players\n")
+
         winners_ = dict(
             sorted(self.player_wins.items(), key=operator.itemgetter(1), reverse=True)
         )
-        winners = "\n".join([f">> {k}: {v} wins" for k, v in winners_.items()])
-        return f"{len(self.games)} games recorded, {len(self.player_kills)} players\n{winners}"
+        non_winners_ = set(self.player_kills.keys()).difference(self.player_wins.keys())
+
+        for winner, wins in winners_.items():
+            output.write(f"**{winner}**: {wins} wins\n")
+            targets_ = dict(sorted(self.player_kills[winner].items(), key=operator.itemgetter(1), reverse=True))
+            i = 1
+            for target, kills in targets_.items():
+                output.write(f" {i}) {target}: _{kills}_ kills\n")
+                i += 1
+
+        for n in non_winners_:
+            output.write(f"**{n}**\n")
+            targets_ = dict(sorted(self.player_kills[n].items(), key=operator.itemgetter(1), reverse=True))
+            i = 1
+            for target, kills in targets_.items():
+                output.write(f" {i}) {target}: _{kills}_ kills\n")
+                i += 1
+
+        output.seek(0)
+        return output.read()
 
 
-def main():
+def reparse_log():
     r = redis.Redis()
     lines = r.lrange("q3log", 0, -1)
 
@@ -131,6 +153,11 @@ def main():
     for ln in lines:
         parsed.handle_message(json.loads(ln.decode("utf-8")))
 
+    return parsed
+
+
+def main():
+    parsed = reparse_log()
     print(parsed)
 
 
