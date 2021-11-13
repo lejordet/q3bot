@@ -12,6 +12,7 @@ from discord.ext import commands
 from xrcon.client import XRcon
 
 from q3constants import BOTS, IX_WORLD, MAP_ROTATIONS, STYLE_EMOJI, TZ
+from q3parselog import Q3LogParse
 
 logging.basicConfig(
     filename="discord.log",
@@ -219,6 +220,13 @@ class Q3Client(commands.Bot):
             """Kill all bots"""
             self.remove_bots()
             await ctx.channel.send("Removed all bots")
+
+        @self.command(name="stats", pass_context=True)
+        async def stats(ctx):
+            """Show historical stats"""
+            stats = Q3LogParse()
+            stats.parse_log()  # TODO: Cache so this can't be used to DOS?
+            await ctx.channel.send(str(stats))
 
         # self.add_command(status)
         # self.add_command(maps)

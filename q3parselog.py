@@ -7,26 +7,8 @@ import redis
 from dateutil.parser import parse
 
 from q3constants import IX_WORLD, TZ
-from q3container import handle_log_all, parse_line
 
 logger = logging.getLogger(__name__)
-
-
-def fill(reload=False):
-    r = redis.Redis()
-    lines = 0
-    total = 0
-    if reload:
-        r.delete("q3log")
-    for log in handle_log_all():
-        p = parse_line(log)
-        total += 1
-        if p is not None:
-            if isinstance(p["content"], bytes):
-                p["content"] = p["content"].decode("utf-8")  # we need the string again
-            r.rpush("q3log", json.dumps(p))
-            lines += 1
-    print(f"Pushed {lines}/{total} lines to the log")
 
 
 def find_winners(scores):
@@ -43,6 +25,7 @@ def render_winners(winners):
 
 class Q3LogParse(object):
     def __init__(self):
+        self.r = redis.Redis()  # TODO: Configurable
         self.scores = dict()
         self.games = dict()
         self.player_wins = dict()
@@ -50,8 +33,9 @@ class Q3LogParse(object):
         self.player_games = dict()
         self.last_start = None
         self.last_map = None
+        self.last_safe_idx = None
 
-    def handle_message(self, message):
+    def handle_message(self, idx, message):
         payload = message["content"]
         try:
             payload = json.loads(payload)
@@ -70,7 +54,6 @@ class Q3LogParse(object):
                 self.games[curts]["scores"] = self.scores
                 winners = find_winners(self.scores)
                 self.games[curts]["winners"] = winners
-                logger.info(self.games[curts])
                 self.games[curts]["duration"] = (
                     self.games[curts]["ended"] - self.games[curts]["started"]
                 )
@@ -87,7 +70,6 @@ class Q3LogParse(object):
             else:
                 if curts in self.games:
                     del self.games[curts]
-                    logger.info(f"Discarded game {ts}, no players")
 
             self.scores = dict()  # commit and reset
             self.last_map = None
@@ -95,7 +77,7 @@ class Q3LogParse(object):
         elif tokens[2] == "InitGame":
             self.last_start = ts
             self.last_map = payload["mapname"]
-
+            self.last_safe_idx = idx
             self.games[ts] = payload
             self.games[ts]["started"] = ts
 
@@ -123,7 +105,8 @@ class Q3LogParse(object):
     def __str__(self):
         output = StringIO()
         output.write(
-            f"**{len(self.games)}** games recorded,"
+            f"**{len(self.games)}** games recorded since "
+            f"{min(self.games.keys()):%Y-%m-%d %H:%M}, "
             f"_{len(self.player_kills)}_ players\n"
         )
 
@@ -168,20 +151,26 @@ class Q3LogParse(object):
             output.write(f" {i}) {target}: _{kills}_ kills\n")
             i += 1
 
+    def parse_log(self):
+        # already_parsed = self.r.get("q3log_lastparse")
+        parse_from = 0
+        # if already_parsed is not None:
+        #     parse_from = int(already_parsed)
 
-def reparse_log():
-    r = redis.Redis()
-    lines = r.lrange("q3log", 0, -1)
+        # log_len = self.r.llen("q3log")
+        parse_to = -1
+        # if log_len is not None:
+        #     parse_to = int(log_len)
 
-    parsed = Q3LogParse()
-    for ln in lines:
-        parsed.handle_message(json.loads(ln.decode("utf-8")))
+        lines = self.r.lrange("q3log", parse_from, parse_to)
 
-    return parsed
+        for ix, ln in enumerate(lines):
+            self.handle_message(ix, json.loads(ln.decode("utf-8")))
 
 
 def main():
-    parsed = reparse_log()
+    parsed = Q3LogParse()
+    parsed.parse_log()
     print(parsed)
 
 
