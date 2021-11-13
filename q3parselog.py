@@ -47,6 +47,7 @@ class Q3LogParse(object):
         self.games = dict()
         self.player_wins = dict()
         self.player_kills = dict()
+        self.player_games = dict()
         self.last_start = None
         self.last_map = None
 
@@ -77,6 +78,9 @@ class Q3LogParse(object):
                     f"Game {self.last_map}@{ts} had {len(self.scores)} players,"
                     f" and {render_winners(winners)} won"
                 )
+                for pl in self.scores:
+                    curgames = self.player_games.setdefault(pl, 0)
+                    self.player_games[pl] = curgames + 1
                 for pl in winners:
                     curwin = self.player_wins.setdefault(pl, 0)
                     self.player_wins[pl] = curwin + 1
@@ -129,7 +133,11 @@ class Q3LogParse(object):
         non_winners_ = set(self.player_kills.keys()).difference(self.player_wins.keys())
 
         for winner, wins in winners_.items():
-            output.write(f"**{winner}**: {wins} wins\n")
+            games = self.player_games[winner]
+            output.write(
+                f"**{winner}**: {wins} wins in {games} games"
+                f" ({100*wins/games:.0f}% win ratio)\n"
+            )
             targets_ = dict(
                 sorted(
                     self.player_kills[winner].items(),
@@ -137,13 +145,11 @@ class Q3LogParse(object):
                     reverse=True,
                 )
             )
-            i = 1
-            for target, kills in targets_.items():
-                output.write(f" {i}) {target}: _{kills}_ kills\n")
-                i += 1
+            self.stringify_kills(output, targets_)
 
         for n in non_winners_:
-            output.write(f"**{n}**\n")
+            games = self.player_games[n]
+            output.write(f"**{n}**: {games} games \n")
             targets_ = dict(
                 sorted(
                     self.player_kills[n].items(),
@@ -151,13 +157,16 @@ class Q3LogParse(object):
                     reverse=True,
                 )
             )
-            i = 1
-            for target, kills in targets_.items():
-                output.write(f" {i}) {target}: _{kills}_ kills\n")
-                i += 1
+            self.stringify_kills(output, targets_)
 
         output.seek(0)
         return output.read()
+
+    def stringify_kills(self, output, targets_):
+        i = 1
+        for target, kills in targets_.items():
+            output.write(f" {i}) {target}: _{kills}_ kills\n")
+            i += 1
 
 
 def reparse_log():
