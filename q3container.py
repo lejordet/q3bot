@@ -3,6 +3,9 @@ import logging
 
 import docker
 import paho.mqtt.client as mqtt
+import redis
+
+from q3constants import CONFIG
 
 logging.basicConfig(
     filename="mqtt.log",
@@ -22,55 +25,24 @@ logging.getLogger("").addHandler(console)
 logger = logging.getLogger(__name__)
 
 
-def parse_config():
-    cfg = dict()
-    with open("secrets.ini", "rt") as f:
-        for line in f.readlines():
-            k, v = line.strip().split("=")
-            cfg[k] = v
-    return cfg
-
-
-CONFIG = parse_config()
-
-
 MQTTSERVER = CONFIG["mqtt"]
 DCK = docker.from_env()
 SHUTDOWN = False
 
 
-MEANS_OF_DEATH = {  # For reference/future use
-    0: "MOD_UNKNOWN",
-    1: "MOD_SHOTGUN",
-    2: "MOD_GAUNTLET",
-    3: "MOD_MACHINEGUN",
-    4: "MOD_GRENADE",
-    5: "MOD_GRENADE_SPLASH",
-    6: "MOD_ROCKET",
-    7: "MOD_ROCKET_SPLASH",
-    8: "MOD_PLASMA",
-    9: "MOD_PLASMA_SPLASH",
-    10: "MOD_RAILGUN",
-    11: "MOD_LIGHTNING",
-    12: "MOD_BFG",
-    13: "MOD_BFG_SPLASH",
-    14: "MOD_WATER",
-    15: "MOD_SLIME",
-    16: "MOD_LAVA",
-    17: "MOD_CRUSH",
-    18: "MOD_TELEFRAG",
-    19: "MOD_FALLING",
-    20: "MOD_SUICIDE",
-    21: "MOD_TARGET_LASER",
-    22: "MOD_TRIGGER_HURT",
-    23: "MOD_GRAPPLE",
-}
-
-
 def handle_log():
+    """Attach to container, and follow all incoming log lines"""
     q3 = DCK.containers.get("quake3e_ded")
     logger.info(f"Following container {q3}")
     for line in q3.logs(tail=0, follow=True, stream=True, timestamps=True):
+        yield line.decode("utf-8").strip()
+
+
+def handle_log_all():
+    """Replay entire log, then stop following"""
+    q3 = DCK.containers.get("quake3e_ded")
+    logger.info(f"Replaying container {q3}")
+    for line in q3.logs(stream=True, follow=False, timestamps=True):
         yield line.decode("utf-8").strip()
 
 
@@ -170,6 +142,12 @@ def parse_line(line):
     return buildobj
 
 
+def redis_line(buildobj):
+    if isinstance(buildobj["content"], bytes):
+        buildobj["content"] = buildobj["content"].decode("utf-8")
+    return json.dumps(buildobj)
+
+
 def on_connect(client, userdata, flags, rc):
     logger.info("Connected with result code " + str(rc))
     client.subscribe("q3bot/#")
@@ -204,6 +182,8 @@ def main():
     src.publish("q3server/status", "hello", retain=True)
     src.will_set("q3server/status", "offline", retain=True)
 
+    r = redis.Redis()
+
     for line in handle_log():
         obj = parse_line(line)
         if obj is None:
@@ -215,6 +195,9 @@ def main():
         if "content" in obj:
             res = src.publish(path, obj["content"], qos=2)
             res.wait_for_publish()
+
+            robj = redis_line(obj)
+            r.rpush("q3log", robj)
         else:
             logger.error(f"No content in {obj}")
         if SHUTDOWN:

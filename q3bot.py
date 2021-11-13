@@ -7,10 +7,11 @@ from pathlib import Path
 
 import discord
 import paho.mqtt.client as mqtt
-import pytz
 from dateutil.parser import parse
 from discord.ext import commands
 from xrcon.client import XRcon
+
+from q3constants import BOTS, IX_WORLD, MAP_ROTATIONS, STYLE_EMOJI, TZ
 
 logging.basicConfig(
     filename="discord.log",
@@ -28,10 +29,6 @@ console.setFormatter(formatter)
 logging.getLogger("").addHandler(console)
 
 logger = logging.getLogger(__name__)
-
-TZ = pytz.timezone("Europe/Oslo")
-IX_WORLD = "1022"
-STYLE_EMOJI = ["👻", "💀", "☠️", "😵", "🤯", "🤬", "🤘", "🎯", "💣", "🍖"]
 
 
 def load_custom_maps(path):
@@ -53,51 +50,6 @@ def generate_map_rotation_cmds(name, rota):
     return result, f"vstr {nname}"
 
 
-# Some basic map rotations
-MAP_ROTATIONS = {
-    "default": [
-        "q3dm1",
-        "q3dm2",
-        "q3dm3",
-        "q3dm4",
-        "q3dm5",
-        "pro-q3dm6",
-        "q3dm7",
-        "pro-q3dm13",
-        "q3dm15",
-        "q3dm16",
-        "q3dm17",
-        "q3tourney2",
-        "q3tourney3",
-        "q3tourney5",
-    ],
-    "1v1": [
-        "q3dm0",
-        "q3dm1",
-        "q3dm2",
-        "q3dm3",
-        "q3dm4",
-        "q3dm5",
-        "q3dm7",
-        "q3tourney2",
-        "q3tourney3",
-        "q3tourney5",
-    ],
-    "large": ["q3dm6", "q3dm7", "q3dm8", "q3dm9", "q3dm18"],
-}
-
-BOTS = [
-    "anarki",
-    "angel",
-    "biker",
-    "bitterman",
-    "bones",
-    "cadavre",
-    "crash",
-    "daemia",
-    "sarge",
-    "visor",
-]
 SUFFIXES = ["bot", ".com", "wtf", "test", "_yep"]
 
 
