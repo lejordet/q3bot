@@ -6,7 +6,7 @@ from io import StringIO
 import redis
 from dateutil.parser import parse
 
-from q3constants import IX_WORLD, TZ
+from q3constants import IX_WORLD, MOD_TO_WEAPON, TZ
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +28,6 @@ class Q3LogParse(object):
         self.r = redis.Redis()  # TODO: Configurable
         self.scores = dict()
         self.games = dict()
-        self.player_wins = dict()
-        self.player_kills = dict()
-        self.player_games = dict()
         self.last_start = None
         self.last_map = None
         self.last_safe_idx = None
@@ -46,10 +43,9 @@ class Q3LogParse(object):
         tokens = (None, None, message["action"])
 
         ts = parse(payload["timestamp"]).astimezone(TZ)
-
+        curts = self.last_start
         # This is the action!
         if tokens[2] == "ShutdownGame":  # happens after the scores have been published
-            curts = self.last_start
             if curts in self.games and len(self.scores) > 1:
                 self.games[curts]["scores"] = self.scores
                 winners = find_winners(self.scores)
@@ -61,12 +57,6 @@ class Q3LogParse(object):
                     f"Game {self.last_map}@{ts} had {len(self.scores)} players,"
                     f" and {render_winners(winners)} won"
                 )
-                for pl in self.scores:
-                    curgames = self.player_games.setdefault(pl, 0)
-                    self.player_games[pl] = curgames + 1
-                for pl in winners:
-                    curwin = self.player_wins.setdefault(pl, 0)
-                    self.player_wins[pl] = curwin + 1
             else:
                 if curts in self.games:
                     del self.games[curts]
@@ -75,6 +65,7 @@ class Q3LogParse(object):
             self.last_map = None
             self.last_start = None
         elif tokens[2] == "InitGame":
+            # Start of game
             self.last_start = ts
             self.last_map = payload["mapname"]
             self.last_safe_idx = idx
@@ -82,60 +73,160 @@ class Q3LogParse(object):
             self.games[ts]["started"] = ts
 
             self.games[ts]["fraglimit"] = int(self.games[ts].get("fraglimit", 100))
+
+            # Add structures we'll fill later
+            self.games[ts]["winners"] = list()
+            self.games[ts]["kills"] = dict()
+            self.games[ts]["weapons"] = dict()
         elif tokens[2] == "Exit":
-            curts = self.last_start
+            # At end of gameplay, but before scores are published
             if curts in self.games:
                 self.games[curts]["reason"] = payload["reason"].lower()[:-1]
                 self.games[curts]["ended"] = ts
         elif tokens[2] == "Score":
+            # Scores are published one-by-one before ShutdownGame
             self.scores[payload["n"]] = payload["score"]
         elif tokens[2] == "Kill":
+            # On each kill
             if payload["clientid"] == IX_WORLD:  # falling damage, etc.
                 name_ = payload["targetn"]
             else:
                 name_ = payload["n"]
-            tgt_ = payload["targetn"]
 
-            # make sure nested dict is filled
-            self.player_kills.setdefault(name_, dict()).setdefault(tgt_, 0)
-            self.player_kills[name_][tgt_] += 1
+            mod = MOD_TO_WEAPON.get(int(payload["methodid"]), "unknown")
+            tgt_ = payload["targetn"]
+            if curts in self.games:
+                self.games[curts]["kills"].setdefault(name_, dict()).setdefault(tgt_, 0)
+                self.games[curts]["kills"][name_][tgt_] += 1
+                if name_ != tgt_:  # only count actual kills
+                    self.games[curts]["weapons"].setdefault(name_, dict()).setdefault(
+                        mod, 0
+                    )
+
+                    self.games[curts]["weapons"][name_][mod] += 1
 
         return True
 
-    def __str__(self):
+    def player_meta(self, since=None):
+        """
+        Get:
+            - player kills dictionary; player -> target -> kills
+            - player games stats dictionary; player -> stat -> dict()
+
+        Optionally since some datetime.
+        """
+        plkill = dict()
+        plgames = dict()
+        plweapons = dict()
+
+        for gts, data in self.games.items():
+            if since is not None and gts < since:
+                continue
+            if "scores" not in data:
+                continue
+
+            for pl, score in data["scores"].items():
+                plgames.setdefault(pl, dict()).setdefault("games", list())
+                plgames[pl].setdefault("mapscore", dict())
+
+                plgames[pl]["games"].append(gts)
+                plgames[pl]["mapscore"].setdefault(data["mapname"], 0)
+                plgames[pl]["mapscore"][data["mapname"]] += score
+
+            for pl in data["winners"]:
+                plgames[pl].setdefault("wins", list())
+                plgames[pl]["wins"].append(gts)
+
+            for pl, dtgt in data["kills"].items():
+                plkill.setdefault(pl, dict())
+
+                for tgt, kills in dtgt.items():
+                    plkill[pl].setdefault(tgt, 0)
+                    plkill[pl][tgt] += kills
+
+            for pl, dmod in data["weapons"].items():
+                plweapons.setdefault(pl, dict())
+
+                for tgt, mod in dmod.items():
+                    plweapons[pl].setdefault(tgt, 0)
+                    plweapons[pl][tgt] += mod
+
+        return plkill, plgames, plweapons
+
+    def player_wins(self, plgames):
+        """Invert games to get a wins/games stat"""
+
+        plwin_ = list()
+        # For each player, calculate wins, games, and win percentage
+        for pl, data in plgames.items():
+            games = len(data["games"])
+            if "mapscore" in data:
+                mapsc_ = list(
+                    sorted(
+                        data["mapscore"].items(),
+                        key=operator.itemgetter(1),
+                        reverse=True,
+                    )
+                )[0]
+            else:
+                mapsc_ = (None, None)  # fallback
+
+            wins = 0
+            frac = 0.0
+
+            if "wins" in data:
+                wins = len(data["wins"])
+                frac = wins / games
+
+            plwin_.append((pl, frac, wins, games, mapsc_[0]))
+
+        return {
+            pl: (frac, wins, games, bestmap)
+            for pl, frac, wins, games, bestmap in sorted(
+                plwin_, key=operator.itemgetter(1), reverse=True
+            )
+        }
+
+    def stats_text(self, since=None):
+        if since is not None and since.tzinfo is None:
+            since = TZ.localize(since)
+        player_kills, player_games, player_weapons = self.player_meta(since)
+        player_wins = self.player_wins(player_games)
+
+        since_ = since if since is not None else min(self.games.keys())
+        sincegames = list(filter(lambda x: x >= since_, self.games.keys()))
         output = StringIO()
         output.write(
-            f"**{len(self.games)}** games recorded since "
-            f"{min(self.games.keys()):%Y-%m-%d %H:%M}, "
-            f"_{len(self.player_kills)}_ players\n"
+            f"**{len(sincegames)}** games recorded since "
+            f"{since_:%Y-%m-%d %H:%M}, "
+            f"_{len(player_kills)}_ players\n"
         )
 
-        winners_ = dict(
-            sorted(self.player_wins.items(), key=operator.itemgetter(1), reverse=True)
-        )
-        non_winners_ = set(self.player_kills.keys()).difference(self.player_wins.keys())
+        for winner, wins_ in player_wins.items():
+            frac, wins, games, bestmap = wins_
+            weapons_ = sorted(
+                player_weapons[winner].items(),
+                key=operator.itemgetter(1),
+                reverse=True,
+            )
 
-        for winner, wins in winners_.items():
-            games = self.player_games[winner]
+            map_part = f"Best map: _{bestmap}_\n" if bestmap is not None else ""
+
+            weap_part = (
+                f"Favourite weapon: {weapons_[0][0]} (_{weapons_[0][1]}_ kills)\n"
+                if len(weapons_) > 0
+                else ""
+            )
+
             output.write(
-                f"**{winner}**: {wins} wins in {games} games"
-                f" ({100*wins/games:.0f}% win ratio)\n"
+                f"\n**{winner}**: {wins} wins in {games} games"
+                f" ({100*frac:.0f}% win ratio)\n"
+                f"{map_part}"
+                f"{weap_part}"
             )
             targets_ = dict(
                 sorted(
-                    self.player_kills[winner].items(),
-                    key=operator.itemgetter(1),
-                    reverse=True,
-                )
-            )
-            self.stringify_kills(output, targets_)
-
-        for n in non_winners_:
-            games = self.player_games[n]
-            output.write(f"**{n}**: {games} games \n")
-            targets_ = dict(
-                sorted(
-                    self.player_kills[n].items(),
+                    player_kills[winner].items(),
                     key=operator.itemgetter(1),
                     reverse=True,
                 )
@@ -171,7 +262,7 @@ class Q3LogParse(object):
 def main():
     parsed = Q3LogParse()
     parsed.parse_log()
-    print(parsed)
+    print(parsed.stats_text(parse("2021-11-08")))
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ from dateutil.parser import parse
 from discord.ext import commands
 from xrcon.client import XRcon
 
-from q3constants import BOTS, IX_WORLD, MAP_ROTATIONS, STYLE_EMOJI, TZ
+from q3constants import BOTS, IX_WORLD, MAP_ROTATIONS, STYLE_EMOJI, TZ, parse_since
 from q3parselog import Q3LogParse
 
 logging.basicConfig(
@@ -222,11 +222,17 @@ class Q3Client(commands.Bot):
             await ctx.channel.send("Removed all bots")
 
         @self.command(name="stats", pass_context=True)
-        async def stats(ctx):
-            """Show historical stats"""
+        async def stats(ctx, limit: str = "all"):
+            """Show historical stats
+
+            Args:
+                limit: Show stats from 'all', 'week', 'today', yyyy-mm-dd
+                       unknown text will be taken as 'all'
+            """
             stats = Q3LogParse()
+            since = parse_since(limit)
             stats.parse_log()  # TODO: Cache so this can't be used to DOS?
-            await ctx.channel.send(str(stats))
+            await ctx.channel.send(stats.stats_text(since))
 
         # self.add_command(status)
         # self.add_command(maps)

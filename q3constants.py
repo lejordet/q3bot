@@ -1,4 +1,8 @@
+from datetime import datetime, timedelta
+from typing import Optional
+
 import pytz
+from dateutil.parser import parse
 
 TZ = pytz.timezone("Europe/Oslo")
 IX_WORLD = "1022"
@@ -29,6 +33,33 @@ MEANS_OF_DEATH = {  # For reference/future use
     21: "MOD_TARGET_LASER",
     22: "MOD_TRIGGER_HURT",
     23: "MOD_GRAPPLE",
+}
+
+MOD_TO_WEAPON = {
+    0: "unknown",
+    1: "shotgun",
+    2: "gauntlet",
+    3: "machinegun",
+    4: "grenade launcher",
+    5: "grenade launcher",
+    6: "rocket launcher",
+    7: "rocket launcher",
+    8: "plasma gun",
+    9: "plasma gun",
+    10: "railgun",
+    11: "lightning gun",
+    12: "BFG",
+    13: "BFG",
+    14: "drowning",
+    15: "slime",
+    16: "lava",
+    17: "crushing",
+    18: "telefrag",
+    19: "falling damage",
+    20: "suicide",
+    21: "laser",
+    22: "world",
+    23: "grapple",
 }
 
 # Some basic map rotations
@@ -88,3 +119,23 @@ def parse_config():
 
 
 CONFIG = parse_config()
+
+
+def parse_since(sincestr: str) -> Optional[datetime]:
+    proto_date = None  # if this is a date, it'll be rounded to start-of-day
+    if sincestr == "today":
+        proto_date = datetime.now()
+    elif sincestr == "week":
+        proto_date = datetime.now()
+        proto_date = proto_date - timedelta(days=proto_date.weekday())
+
+    try:
+        # Give the date parser a shot
+        proto_date = parse(sincestr)
+    except ValueError:
+        pass
+
+    if proto_date is not None:
+        return proto_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        return proto_date
