@@ -192,8 +192,8 @@ class Q3LogParse(object):
             since = TZ.localize(since)
         player_kills, player_games, player_weapons = self.player_meta(since)
         player_wins = self.player_wins(player_games)
-
-        since_ = since if since is not None else min(self.games.keys())
+        first_game = min(self.games.keys())
+        since_ = max(first_game, since) if since is not None else first_game
         sincegames = list(filter(lambda x: x >= since_, self.games.keys()))
         output = StringIO()
         output.write(
@@ -258,11 +258,20 @@ class Q3LogParse(object):
         for ix, ln in enumerate(lines):
             self.handle_message(ix, json.loads(ln.decode("utf-8")))
 
+        # Clean up orphaned games
+        to_delete = list()
+        for ts, game in self.games.items():
+            if "scores" not in game:
+                to_delete.append(ts)
+
+        for ts in to_delete:
+            del self.games[ts]
+
 
 def main():
     parsed = Q3LogParse()
     parsed.parse_log()
-    print(parsed.stats_text(parse("2021-11-08")))
+    print(parsed.stats_text(parse("2021-01-01")))
 
 
 if __name__ == "__main__":
