@@ -78,6 +78,7 @@ class Q3Client(commands.Bot):
         self.rcon.connect()
 
         self.game = discord.Game("Quake3E")
+        self.game_status_change = False  # if true, we update the map name in the presence
         # an attribute we can access from our task
         self.clients = dict()
         self.msgs = deque()
@@ -88,6 +89,7 @@ class Q3Client(commands.Bot):
 
         self.bot_skill = int(self.cfg.get("bot_skill", 4))
         self.bots_active = False
+        self.autobots_change = None  # if not None, used as second parameter for handle_autobots
         self.add_commands()
 
         self.mqtt.loop_start()
@@ -99,13 +101,15 @@ class Q3Client(commands.Bot):
         logger.info("------")
         await self.change_presence(status=discord.Status.online, activity=self.game)
 
-    def ensure_status(self, force=False):
+    async def ensure_status(self, force=False):
         if "mapname" not in self.current_game or force:
             status_, players = self.rcon.getstatus()
             logger.info(status_)
             status = {k.decode("utf-8"): v.decode("utf-8") for k, v in status_.items()}
             self.current_game.update(status)
             logger.info(f"rcon> fetched mapname {status['mapname']}")
+            self.game = discord.Game(f"Quake3E on {status['mapname']}")
+            self.game_status_change = True
             if len(players) < len(self.clients):  # we probably have too many bots!
                 # try to match names
                 names = [p.name.decode("utf-8") for p in players]
@@ -122,16 +126,24 @@ class Q3Client(commands.Bot):
                         deleteix.append(ix)
                 for ix in deleteix:
                     del self.clients[ix]
+        if self.game_status_change:
+            await self.change_presence(status=discord.Status.online, activity=self.game)
+            self.game_status_change = False
 
-    def remove_bots(self):
+        if self.autobots_change is not None:  # stylish ternary logic
+            clicount = len(self.clients)
+            await self.handle_autobots(clicount, self.autobots_change)
+            self.autobots_change = None
+
+    async def remove_bots(self):
         logging.info(">>> kick allbots")
         self.rcon.execute("kick allbots")
 
         # Check that we got rid of them!
-        self.ensure_status(True)
+        await self.ensure_status(True)
         self.bots_active = False
 
-    def add_bots(self, count=1):
+    async def add_bots(self, count=1):
         """Adds some bots
 
         Args:
@@ -145,22 +157,22 @@ class Q3Client(commands.Bot):
             logging.info(f"Adding {bot}")
             self.rcon.execute(f"addbot {bot} {self.bot_skill}")
             added.append(bot)
-        self.ensure_status(True)
+        await self.ensure_status(True)
         self.bots_active = True
         return added
 
-    def handle_autobots(self, playercount, joining):
+    async def handle_autobots(self, playercount, joining):
         if self.cfg["autobots"] != "roll out":
             return list()
 
         if playercount in (0, 1) and not joining and self.bots_active:
-            self.remove_bots()
+            await self.remove_bots()
             return 0
         elif playercount == 1 and joining and not self.bots_active:
-            self.add_bots(1)
+            await self.add_bots(1)
             return 2
         elif playercount > 2 and joining and self.bots_active:
-            self.remove_bots()
+            await self.remove_bots()
             return 2
 
         return list()  # no messages defined yet
@@ -170,7 +182,7 @@ class Q3Client(commands.Bot):
         async def status(ctx):
             """See who's playing and where"""
             logger.info(f"status requested: {ctx}")
-            self.ensure_status(True)
+            await self.ensure_status(True)
             await ctx.channel.send(
                 f"status: {len(self.clients)} players on "
                 f"{self.current_game['mapname']}"
@@ -211,14 +223,14 @@ class Q3Client(commands.Bot):
             Args:
                 count: Number of bots
             """
-            bots = self.add_bots(count)
+            bots = await self.add_bots(count)
             pl_ = "Bots" if len(bots) != 1 else "Bot"
             await ctx.channel.send(f"{pl_} added: {', '.join(bots)}")
 
         @self.command(name="killbots", pass_context=True)
         async def killbots(ctx):
             """Kill all bots"""
-            self.remove_bots()
+            await self.remove_bots()
             await ctx.channel.send("Removed all bots")
 
         @self.command(name="stats", pass_context=True)
@@ -281,6 +293,8 @@ class Q3Client(commands.Bot):
             self.current_game["fraglimit"] = int(
                 self.current_game.get("fraglimit", 100)
             )
+            self.game = discord.Game(f"Quake3E on {payload['mapname']}")
+            self.game_status_change = True
 
             self.clients = dict()
         elif tokens[2] == "Exit":
@@ -354,7 +368,8 @@ class Q3Client(commands.Bot):
                 serverstate = (
                     f"{clicount} players online" if clicount > 0 else "server empty"
                 )
-                clicount = self.handle_autobots(clicount, False)
+
+                self.autobots_change = False
                 self.msgs.append(
                     f"{cli.get('n', '<unknown>')} disconnected, {serverstate}"
                 )
@@ -372,7 +387,7 @@ class Q3Client(commands.Bot):
                 serverstate = (
                     f"{clicount} players online" if clicount > 0 else "server empty"
                 )
-                clicount = self.handle_autobots(clicount, True)
+                self.autobots_change = True
                 self.msgs.append(
                     f"{cli.get('n', '<unknown>')} joined the game, {serverstate}"
                 )
@@ -443,7 +458,7 @@ class Q3Client(commands.Bot):
             if msg is not None:
                 await channel.send(msg)
             else:
-                self.ensure_status()
+                await self.ensure_status()
 
 
 def parse_config():
