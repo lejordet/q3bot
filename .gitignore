@@ -2,3 +2,5 @@ secrets.ini
 *.log
 *.pyc
 .vscode
+.mypy_cache
+__pycache__

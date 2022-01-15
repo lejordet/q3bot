@@ -1,0 +1,59 @@
+version: "3.9"  # optional since v1.27.0
+services:
+  q3mosquitto:
+    image: eclipse-mosquitto:latest
+    volumes:
+    - /tank/container/mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    - mosquittodata:/mosquitto/data
+    - mosquittolog:/mosquitto/log
+    restart: unless-stopped
+    ports:
+    - "1883:1883"
+    - "9002:9002"
+  q3redis:
+    image: redis:latest
+    volumes:
+    - /tank/container/redis:/data
+    restart: unless-stopped
+    ports:
+    - "6379:6379"
+  q3server:
+    image: bademux/quake3e-server:latest
+    container_name: q3server
+    volumes:
+    - /tank/container/q3/baseq3:/home/user/baseq3
+    - /tank/container/q3/baseq3/server.cfg:/home/user/baseq3/q3config_server.cfg
+    restart: unless-stopped
+    tty: true
+    networks:
+    - q3external
+    ports:
+    - "27960:27960/udp"
+  q3containerparser:
+    build:
+      context: .
+      dockerfile: Dockerfile.container
+    restart: unless-stopped
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+    - "q3server"
+    - "q3redis"
+    - "q3mosquitto"
+  q3discordbot:
+    build:
+      context: .
+      dockerfile: Dockerfile.discord
+    restart: unless-stopped
+    volumes:
+    - /tank/container/q3/baseq3:/tank/container/q3/baseq3
+    depends_on:
+    - "q3server"
+    - "q3redis"
+    - "q3mosquitto"
+volumes:
+  mosquittodata:
+  mosquittolog:
+networks:
+  q3external:
+    driver: bridge

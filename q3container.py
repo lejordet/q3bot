@@ -32,7 +32,7 @@ SHUTDOWN = False
 
 def handle_log():
     """Attach to container, and follow all incoming log lines"""
-    q3 = DCK.containers.get("quake3e_ded")
+    q3 = DCK.containers.get("q3server")
     logger.info(f"Following container {q3}")
     for line in q3.logs(tail=0, follow=True, stream=True, timestamps=True):
         yield line.decode("utf-8").strip()
@@ -182,7 +182,10 @@ def main():
     src.publish("q3server/status", "hello", retain=True)
     src.will_set("q3server/status", "offline", retain=True)
 
-    r = redis.Redis()
+    rhost = CONFIG.get("redishost", "localhost")
+    rport = int(CONFIG.get("redisport", "6379"))
+    rdb = int(CONFIG.get("redisdb", "0"))
+    r = redis.Redis(host=rhost, port=rport, db=rdb)
 
     for line in handle_log():
         obj = parse_line(line)

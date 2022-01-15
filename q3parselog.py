@@ -6,7 +6,7 @@ from io import StringIO
 import redis
 from dateutil.parser import parse
 
-from q3constants import IX_WORLD, MOD_TO_WEAPON, TZ
+from q3constants import CONFIG, IX_WORLD, MOD_TO_WEAPON, TZ
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,10 @@ def render_winners(winners):
 
 class Q3LogParse(object):
     def __init__(self):
-        self.r = redis.Redis()  # TODO: Configurable
+        rhost = CONFIG.get("redishost", "localhost")
+        rport = int(CONFIG.get("redisport", "6379"))
+        rdb = int(CONFIG.get("redisdb", "0"))
+        self.r = redis.Redis(host=rhost, port=rport, db=rdb)
         self.scores = dict()
         self.games = dict()
         self.last_start = None
