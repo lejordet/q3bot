@@ -78,7 +78,7 @@ class Q3Client(commands.Bot):
         self.rcon.connect()
 
         self.game = discord.Game("Quake3E")
-        self.game_status_change = False  # if true, we update the map name in the presence
+        self.game_status_change = False  # if true, we update the presence
         # an attribute we can access from our task
         self.clients = dict()
         self.msgs = deque()
@@ -89,7 +89,8 @@ class Q3Client(commands.Bot):
 
         self.bot_skill = int(self.cfg.get("bot_skill", 4))
         self.bots_active = False
-        self.autobots_change = None  # if not None, used as second parameter for handle_autobots
+        # if set used as second parameter for handle_autobots:
+        self.autobots_change = None
         self.add_commands()
 
         self.mqtt.loop_start()

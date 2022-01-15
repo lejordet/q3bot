@@ -4,3 +4,4 @@ docker
 python-dateutil
 pytz
 xrcon
+redis
