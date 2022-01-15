@@ -20,13 +20,13 @@ services:
   q3server:
     image: bademux/quake3e-server:latest
     container_name: q3server
+    hostname: q3server
     volumes:
     - /tank/container/q3/baseq3:/home/user/baseq3
     - /tank/container/q3/baseq3/server.cfg:/home/user/baseq3/q3config_server.cfg
     restart: unless-stopped
+    command: '+map q3dm7'
     tty: true
-    networks:
-    - q3external
     ports:
     - "27960:27960/udp"
   q3containerparser:
@@ -54,6 +54,3 @@ services:
 volumes:
   mosquittodata:
   mosquittolog:
-networks:
-  q3external:
-    driver: bridge

@@ -1,5 +1,6 @@
 import json
 import logging
+from io import BytesIO
 
 import docker
 import paho.mqtt.client as mqtt
@@ -30,19 +31,53 @@ DCK = docker.from_env()
 SHUTDOWN = False
 
 
-def handle_log():
-    """Attach to container, and follow all incoming log lines"""
+def log_handler(all_lines=False):
+    """Attach to container, and follow all incoming log lines
+    - we might get these as single bytes """
     q3 = DCK.containers.get("q3server")
     logger.info(f"Following container {q3}")
-    for line in q3.logs(tail=0, follow=True, stream=True, timestamps=True):
+
+    line = BytesIO()
+    last_r = False
+    emit_line = False
+
+    extra_kwargs = dict(follow=False)
+    if not all_lines:
+        extra_kwargs["tail"] = 0
+        extra_kwargs["follow"] = True
+
+    for ch in q3.logs(stream=True, timestamps=True, **extra_kwargs):
+        if len(ch) > 1:
+            # assume full line
+            yield ch
+        else:
+            # single char/byte mode
+            if ch == b'\x08':  # backspace
+                line.seek(-1, 2)
+                continue
+            elif ch == b'\r':  # we wait for a \r\n combo before we emit a line
+                last_r = True
+            elif ch == b'\n':
+                if last_r:
+                    emit_line = True
+                    last_r = False
+
+            line.write(ch)
+            if emit_line:
+                yield line.getvalue()
+                emit_line = False
+                line = BytesIO()
+
+
+def handle_log():
+    """Attach to container, and follow all incoming log lines"""
+    for line in log_handler():
         yield line.decode("utf-8").strip()
 
 
 def handle_log_all():
     """Replay entire log, then stop following"""
-    q3 = DCK.containers.get("quake3e_ded")
-    logger.info(f"Replaying container {q3}")
-    for line in q3.logs(stream=True, follow=False, timestamps=True):
+    for line in log_handler(True):
         yield line.decode("utf-8").strip()
 
 
