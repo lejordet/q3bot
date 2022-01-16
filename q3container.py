@@ -33,7 +33,7 @@ SHUTDOWN = False
 
 def log_handler(all_lines=False):
     """Attach to container, and follow all incoming log lines
-    - we might get these as single bytes """
+    - we might get these as single bytes"""
     q3 = DCK.containers.get("q3server")
     logger.info(f"Following container {q3}")
 
@@ -52,12 +52,12 @@ def log_handler(all_lines=False):
             yield ch
         else:
             # single char/byte mode
-            if ch == b'\x08':  # backspace
+            if ch == b"\x08":  # backspace
                 line.seek(-1, 2)
                 continue
-            elif ch == b'\r':  # we wait for a \r\n combo before we emit a line
+            elif ch == b"\r":  # we wait for a \r\n combo before we emit a line
                 last_r = True
-            elif ch == b'\n':
+            elif ch == b"\n":
                 if last_r:
                     emit_line = True
                     last_r = False

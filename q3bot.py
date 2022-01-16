@@ -101,6 +101,7 @@ class Q3Client(commands.Bot):
         logger.info(self.user.id)
         logger.info("------")
         await self.change_presence(status=discord.Status.online, activity=self.game)
+        await self.set_map_rotation("default", quiet=True)
 
     async def ensure_status(self, force=False):
         if "mapname" not in self.current_game or force:
@@ -395,12 +396,15 @@ class Q3Client(commands.Bot):
 
         return True
 
-    async def set_map_rotation(self, rotaname, changemap=False, randomize=True):
+    async def set_map_rotation(
+        self, rotaname, changemap=False, randomize=True, quiet=False
+    ):
         await self.wait_until_ready()
         channel = self.get_channel(int(self.cfg["channel"]))
-        await channel.send(
-            f"Changing to map rotation {rotaname}{', randomized' if randomize else ''}"
-        )
+        if not quiet:
+            await channel.send(
+                f"Changing to map rotation {rotaname}{', randomized' if randomize else ''}"
+            )
 
         if changemap and len(self.clients) > 1:
             await channel.send(
@@ -429,14 +433,16 @@ class Q3Client(commands.Bot):
             rotaname_ = f"{rotaname_}rnd"
 
         items, immediate = generate_map_rotation_cmds(rotaname_, rota)
-        await channel.send(f"> {', '.join(rota)}")
+        if not quiet:
+            await channel.send(f"> {', '.join(rota)}")
         for item in items:
             self.rcon.execute(item)
 
         if not changemap:
             immediate = f"set nextmap {immediate}"
             self.rcon.execute(immediate)
-            await channel.send(f"Next map set to {rota[0]}")
+            if not quiet:
+                await channel.send(f"Next map set to {rota[0]}")
             self.rcon.execute(
                 f"say Map rotation changed to {rotaname}, next map is {rota[0]}"
             )
