@@ -10,7 +10,7 @@ from q3constants import CONFIG
 
 logging.basicConfig(
     filename="mqtt.log",
-    level=logging.INFO,
+    level=logging.ERROR,
     format="[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s",
     datefmt="%H:%M:%S",
 )

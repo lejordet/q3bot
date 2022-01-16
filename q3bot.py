@@ -16,7 +16,7 @@ from q3parselog import Q3LogParse
 
 logging.basicConfig(
     filename="discord.log",
-    level=logging.INFO,
+    level=logging.ERROR,
     format="[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s",
     datefmt="%H:%M:%S",
 )
@@ -402,9 +402,8 @@ class Q3Client(commands.Bot):
         await self.wait_until_ready()
         channel = self.get_channel(int(self.cfg["channel"]))
         if not quiet:
-            await channel.send(
-                f"Changing to map rotation {rotaname}{', randomized' if randomize else ''}"
-            )
+            randtext = ", randomized" if randomize else ""
+            await channel.send(f"Changing to map rotation {rotaname}{randtext}")
 
         if changemap and len(self.clients) > 1:
             await channel.send(
