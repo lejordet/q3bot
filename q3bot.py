@@ -24,7 +24,7 @@ logging.basicConfig(
 console = logging.StreamHandler()
 console.setLevel(logging.DEBUG)
 # set a format which is simpler for console use
-formatter = logging.Formatter("%(name)-12s: %(levelname)-8s %(message)s")
+formatter = logging.Formatter("[%(asctime)s] %(name)-12s: %(levelname)-8s %(message)s")
 console.setFormatter(formatter)
 # add the handler to the root logger
 logging.getLogger("").addHandler(console)
@@ -70,10 +70,16 @@ class Q3Client(commands.Bot):
         self.mqtt.on_message = self.on_mqtt_message
         self.mqtt.on_log = self.on_mqtt_log
 
-        self.mqtt.connect(self.cfg["mqtt"])
+        self.mqtt.connect(
+            self.cfg.get("mqtt", "q3mosquitto")
+        )  # default to container name
 
         self.rcon = XRcon(
-            self.cfg["rconip"], 27960, self.cfg["rconpass"], secure_rcon=0, timeout=1
+            self.cfg.get("rconip", "q3server"),
+            27960,
+            self.cfg["rconpass"],
+            secure_rcon=0,
+            timeout=1,
         )
         self.rcon.connect()
 

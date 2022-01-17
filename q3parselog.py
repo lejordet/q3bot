@@ -25,7 +25,7 @@ def render_winners(winners):
 
 class Q3LogParse(object):
     def __init__(self):
-        rhost = CONFIG.get("redishost", "localhost")
+        rhost = CONFIG.get("redishost", "q3redis")
         rport = int(CONFIG.get("redisport", "6379"))
         rdb = int(CONFIG.get("redisdb", "0"))
         self.r = redis.Redis(host=rhost, port=rport, db=rdb)

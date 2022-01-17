@@ -18,7 +18,7 @@ logging.basicConfig(
 console = logging.StreamHandler()
 console.setLevel(logging.DEBUG)
 # set a format which is simpler for console use
-formatter = logging.Formatter("%(name)-12s: %(levelname)-8s %(message)s")
+formatter = logging.Formatter("[%(asctime)s] %(name)-12s: %(levelname)-8s %(message)s")
 console.setFormatter(formatter)
 # add the handler to the root logger
 logging.getLogger("").addHandler(console)
@@ -26,7 +26,7 @@ logging.getLogger("").addHandler(console)
 logger = logging.getLogger(__name__)
 
 
-MQTTSERVER = CONFIG["mqtt"]
+MQTTSERVER = CONFIG.get("mqtt", "q3mosquitto")
 DCK = docker.from_env()
 SHUTDOWN = False
 
@@ -217,7 +217,7 @@ def main():
     src.publish("q3server/status", "hello", retain=True)
     src.will_set("q3server/status", "offline", retain=True)
 
-    rhost = CONFIG.get("redishost", "localhost")
+    rhost = CONFIG.get("redishost", "q3redis")
     rport = int(CONFIG.get("redisport", "6379"))
     rdb = int(CONFIG.get("redisdb", "0"))
     r = redis.Redis(host=rhost, port=rport, db=rdb)

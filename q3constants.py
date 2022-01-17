@@ -113,6 +113,8 @@ def parse_config():
     cfg = dict()
     with open("secrets.ini", "rt") as f:
         for line in f.readlines():
+            if line[0] == ";":
+                continue
             k, v = line.strip().split("=")
             cfg[k] = v
     return cfg
