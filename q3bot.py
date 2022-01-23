@@ -317,7 +317,8 @@ class Q3Client(commands.Bot):
         elif tokens[2] == "Kill":
             if payload["method"] == "MOD_LIGHTNING":
                 self.msgs.append(
-                    f"{render_name(payload['n'])} killed {render_name(payload['targetn'])} "
+                    f"{render_name(payload['n'])} killed "
+                    f"{render_name(payload['targetn'])} "
                     f"with {self.cfg.get('lightning_injoke', 'the power of Zeus')}"
                 )
 

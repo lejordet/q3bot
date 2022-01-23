@@ -110,7 +110,8 @@ BOTS = [
 
 
 def is_bot(name):
-    return name.lower() in BOTS  # Not perfect, but should work (unless someone takes a bot name)
+    # Not perfect, but should work (unless someone takes a bot name)
+    return name.lower() in BOTS
 
 
 def parse_config():
