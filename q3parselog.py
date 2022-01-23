@@ -15,7 +15,7 @@ def render_name(name):
     if name is None:
         return "<unknown>❓"
     elif is_bot(name):
-        return f"{name} 🤖"
+        return f"{name} {CONFIG.get('bot_tag', '🤖')}"
     else:
         return name
 
