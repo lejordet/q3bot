@@ -6,9 +6,18 @@ from io import StringIO
 import redis
 from dateutil.parser import parse
 
-from q3constants import CONFIG, IX_WORLD, MOD_TO_WEAPON, TZ
+from q3constants import CONFIG, IX_WORLD, MOD_TO_WEAPON, TZ, is_bot
 
 logger = logging.getLogger(__name__)
+
+
+def render_name(name):
+    if name is None:
+        return "<unknown>❓"
+    elif is_bot(name):
+        return f"{name} 🤖"
+    else:
+        return name
 
 
 def find_winners(scores):
@@ -20,7 +29,7 @@ def render_winners(winners):
     if len(winners) == 1:
         return winners[0]
     else:
-        return f"{', '.join(winners)} (shared victory)"
+        return f"{', '.join(map(render_name, winners))} (shared victory)"
 
 
 class Q3LogParse(object):
@@ -207,6 +216,7 @@ class Q3LogParse(object):
 
         for winner, wins_ in player_wins.items():
             frac, wins, games, bestmap = wins_
+            winner_ = render_name(winner)
             weapons_ = sorted(
                 player_weapons[winner].items(),
                 key=operator.itemgetter(1),
@@ -222,7 +232,7 @@ class Q3LogParse(object):
             )
 
             output.write(
-                f"\n**{winner}**: {wins} wins in {games} games"
+                f"\n**{winner_}**: {wins} wins in {games} games"
                 f" ({100*frac:.0f}% win ratio)\n"
                 f"{map_part}"
                 f"{weap_part}"
@@ -242,7 +252,8 @@ class Q3LogParse(object):
     def stringify_kills(self, output, targets_):
         i = 1
         for target, kills in targets_.items():
-            output.write(f" {i}) {target}: _{kills}_ kills\n")
+            target_ = render_name(target)
+            output.write(f" {i}) {target_}: _{kills}_ kills\n")
             i += 1
 
     def parse_log(self):

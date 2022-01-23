@@ -12,7 +12,7 @@ from discord.ext import commands
 from xrcon.client import XRcon
 
 from q3constants import BOTS, IX_WORLD, MAP_ROTATIONS, STYLE_EMOJI, TZ, parse_since
-from q3parselog import Q3LogParse
+from q3parselog import Q3LogParse, render_name
 
 logging.basicConfig(
     filename="discord.log",
@@ -317,7 +317,7 @@ class Q3Client(commands.Bot):
         elif tokens[2] == "Kill":
             if payload["method"] == "MOD_LIGHTNING":
                 self.msgs.append(
-                    f"{payload['n']} killed {payload['targetn']} "
+                    f"{render_name(payload['n'])} killed {render_name(payload['targetn'])} "
                     f"with {self.cfg.get('lightning_injoke', 'the power of Zeus')}"
                 )
 
@@ -379,7 +379,7 @@ class Q3Client(commands.Bot):
 
                 self.autobots_change = False
                 self.msgs.append(
-                    f"{cli.get('n', '<unknown>')} disconnected, {serverstate}"
+                    f"{render_name(cli.get('n'))} disconnected, {serverstate}"
                 )
             elif payload["action"] == "Begin":
                 pass  # we trigger on receiving the name instead
@@ -388,7 +388,7 @@ class Q3Client(commands.Bot):
             elif payload["action"] == "InfoChanged":
                 if prev_name is not None and prev_name != cli["n"]:
                     self.msgs.append(
-                        f"{prev_name} changed name to {cli.get('n', '<unknown>')}"
+                        f"{prev_name} changed name to {render_name(cli.get('n'))}"
                     )
             if prev_name is None and "n" in payload:
                 clicount = len(self.clients)
@@ -397,7 +397,7 @@ class Q3Client(commands.Bot):
                 )
                 self.autobots_change = True
                 self.msgs.append(
-                    f"{cli.get('n', '<unknown>')} joined the game, {serverstate}"
+                    f"{render_name(cli.get('n'))} joined the game, {serverstate}"
                 )
 
         return True

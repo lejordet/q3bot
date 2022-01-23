@@ -109,6 +109,10 @@ BOTS = [
 ]
 
 
+def is_bot(name):
+    return name.lower() in BOTS  # Not perfect, but should work (unless someone takes a bot name)
+
+
 def parse_config():
     cfg = dict()
     with open("secrets.ini", "rt") as f:
