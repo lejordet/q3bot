@@ -7,16 +7,16 @@ services:
     - mosquittodata:/mosquitto/data
     - mosquittolog:/mosquitto/log
     restart: unless-stopped
-    ports:
-    - "1883:1883"
-    - "9002:9002"
+    expose:
+    - "1883"
+    - "9002"
   q3redis:
     image: redis:latest
     volumes:
     - /tank/container/redis:/data
     restart: unless-stopped
-    ports:
-    - "6379:6379"
+    expose:
+    - "6379"
   q3server:
     image: bademux/quake3e-server:latest
     container_name: q3server
