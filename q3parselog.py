@@ -207,14 +207,14 @@ class Q3LogParse(object):
         first_game = min(self.games.keys())
         since_ = max(first_game, since) if since is not None else first_game
         sincegames = list(filter(lambda x: x >= since_, self.games.keys()))
-        output = StringIO()
-        output.write(
+        yield (
             f"**{len(sincegames)}** games recorded since "
             f"{since_:%Y-%m-%d %H:%M}, "
             f"_{len(player_kills)}_ players\n"
         )
 
         for winner, wins_ in player_wins.items():
+            output = StringIO()
             frac, wins, games, bestmap = wins_
             winner_ = render_name(winner)
             weapons_ = sorted(
@@ -246,8 +246,8 @@ class Q3LogParse(object):
             )
             self.stringify_kills(output, targets_)
 
-        output.seek(0)
-        return output.read()
+            output.seek(0)
+            yield output.read()
 
     def stringify_kills(self, output, targets_):
         i = 1
@@ -285,7 +285,8 @@ class Q3LogParse(object):
 def main():
     parsed = Q3LogParse()
     parsed.parse_log()
-    print(parsed.stats_text(parse("2021-01-01")))
+    for text in parsed.stats_text(parse("2021-01-01")):
+        print(text)
 
 
 if __name__ == "__main__":

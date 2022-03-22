@@ -252,7 +252,8 @@ class Q3Client(commands.Bot):
             stats = Q3LogParse()
             since = parse_since(limit)
             stats.parse_log()  # TODO: Cache so this can't be used to DOS?
-            await ctx.channel.send(stats.stats_text(since))
+            for text in stats.stats_text(since):
+                await ctx.channel.send(text)
 
         # self.add_command(status)
         # self.add_command(maps)
