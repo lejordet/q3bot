@@ -3,5 +3,5 @@ discord.py
 docker
 python-dateutil
 pytz
-xrcon
+git+https://github.com/lejordet/xrcon.git
 redis
