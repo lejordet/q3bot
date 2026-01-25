@@ -207,7 +207,7 @@ def on_log(client, userdata, level, buff):
 
 
 def main():
-    src = mqtt.Client("q3bot")
+    src = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, "q3bot")
     src.on_connect = on_connect
     src.on_message = on_message
     src.enable_logger(logger)

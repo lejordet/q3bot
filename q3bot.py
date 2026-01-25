@@ -65,7 +65,7 @@ class Q3Client(commands.Bot):
 
         self.current_rotation = "default"
 
-        self.mqtt = mqtt.Client("q3client")
+        self.mqtt = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,"q3client")
         self.mqtt.on_connect = self.on_mqtt_connect
         self.mqtt.on_message = self.on_mqtt_message
         self.mqtt.on_log = self.on_mqtt_log
