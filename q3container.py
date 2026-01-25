@@ -183,7 +183,7 @@ def redis_line(buildobj):
     return json.dumps(buildobj)
 
 
-def on_connect(client, userdata, flags, rc):
+def on_connect(client, userdata, flags, rc, props):
     logger.info("Connected with result code " + str(rc))
     client.subscribe("q3bot/#")
 

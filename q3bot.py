@@ -88,7 +88,8 @@ class Q3Client(commands.Bot):
         # an attribute we can access from our task
         self.clients = dict()
         self.msgs = deque()
-        # create the background task and run it in the background
+
+        # background task will be created async
         self.bg_task = None
 
         self.current_game = dict()
@@ -102,6 +103,7 @@ class Q3Client(commands.Bot):
         self.mqtt.loop_start()
 
     async def setup_hook(self):
+        # create the background task and run it in the background
         self.bg_task = self.loop.create_task(self.my_background_task())
 
     async def on_ready(self):
@@ -264,7 +266,7 @@ class Q3Client(commands.Bot):
     def on_mqtt_log(client, userdata, level, buff):
         console.debug(buff)
 
-    def on_mqtt_connect(self, client, userdata, flags, rc):
+    def on_mqtt_connect(self, client, userdata, flags, rc, props):
         logger.info("Connected with result code " + str(rc))
         try:
             client.subscribe("q3server/#", qos=2)
