@@ -494,7 +494,7 @@ def main():
     intents = discord.Intents.default()
     intents.typing = False
     intents.presences = False
-    intent.message_content = True
+    intents.message_content = True
     client = Q3Client(command_prefix="!", intents=intents)
 
     client.run(cfg["token"])
