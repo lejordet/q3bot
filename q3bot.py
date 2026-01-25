@@ -89,7 +89,7 @@ class Q3Client(commands.Bot):
         self.clients = dict()
         self.msgs = deque()
         # create the background task and run it in the background
-        self.bg_task = self.loop.create_task(self.my_background_task())
+        self.bg_task = None
 
         self.current_game = dict()
 
@@ -100,6 +100,9 @@ class Q3Client(commands.Bot):
         self.add_commands()
 
         self.mqtt.loop_start()
+
+    async def setup_hook(self):
+        self.bg_task = self.loop.create_task(self.my_background_task())
 
     async def on_ready(self):
         logger.info("Logged in as")
