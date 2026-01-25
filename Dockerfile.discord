@@ -1,10 +1,12 @@
-FROM python:3.9
+FROM python:3.14-slim
 
 WORKDIR /app
 
 COPY requirements.txt requirements.txt
 
-RUN pip3 install -r requirements.txt
+# Install dependencies with uv inside the image.
+RUN pip install --no-cache-dir uv \
+    && uv pip install --system --no-cache -r requirements.txt
 
 COPY secrets.ini secrets.ini
 
