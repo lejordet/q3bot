@@ -4,6 +4,7 @@ import random
 from asyncio import sleep
 from collections import deque
 from pathlib import Path
+from fnmatch import fnmatch
 
 import discord
 import paho.mqtt.client as mqtt
@@ -31,13 +32,38 @@ logging.getLogger("").addHandler(console)
 
 logger = logging.getLogger(__name__)
 
+MAP_IGNORE_FILE = ".mapignore"
 
-def load_custom_maps(path):
-    return [
+def load_custom_maps(path, only_include=None):
+    ignored_patterns = {"pak?", "*baseq3"}
+    if (Path(path) / ".mapignore").exists():
+        in_patterns = (Path(path) / ".mapignore").read_text().splitlines()
+        ignored_patterns.update({p for p in in_patterns if len(p.strip()) > 1})
+        print(f"Loaded {len(in_patterns)}")
+
+    pakfiles = [
         a.stem.replace("map-", "")
         for a in Path(path).iterdir()
         if a.is_file() and a.suffix == ".pk3"
     ]
+
+    if only_include is not None:
+        pakfiles = [n for n in pakfiles if n in only_include]
+
+    for ignore in ignored_patterns:
+        pakfiles = [n for n in pakfiles if not fnmatch(n, ignore)]
+
+    return sorted(pakfiles)
+
+
+def load_custom_maprotations(path):
+    rotations = {}
+    for f in Path(path).glob("*.maprotation"):
+        rota = load_custom_maps(path, f.read_text().splitlines())
+        if len(rota) > 0:
+            rotations[f.stem] = rota
+
+    return rotations
 
 
 def generate_map_rotation_cmds(name, rota):
@@ -62,6 +88,7 @@ class Q3Client(commands.Bot):
         self.map_rotations.update(MAP_ROTATIONS)
         if "extra_maps_dir" in self.cfg:
             self.map_rotations["custom"] = load_custom_maps(self.cfg["extra_maps_dir"])
+            self.map_rotations.update(load_custom_maprotations(self.cfg["extra_maps_dir"]))
 
         self.current_rotation = "default"
 
