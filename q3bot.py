@@ -11,6 +11,7 @@ import paho.mqtt.client as mqtt
 from dateutil.parser import parse
 from discord.ext import commands
 from xrcon.client import XRcon
+from datetime import datetime, timedelta
 
 from q3constants import BOTS, IX_WORLD, MAP_ROTATIONS, STYLE_EMOJI, TZ, parse_since
 from q3parselog import Q3LogParse, render_name
@@ -33,6 +34,7 @@ logging.getLogger("").addHandler(console)
 logger = logging.getLogger(__name__)
 
 MAP_IGNORE_FILE = ".mapignore"
+NEWGAME_COOLDOWN = timedelta(seconds=30)
 
 def load_custom_maps(path, only_include=None):
     ignored_patterns = {"pak?", "*baseq3"}
@@ -91,6 +93,7 @@ class Q3Client(commands.Bot):
             self.map_rotations.update(load_custom_maprotations(self.cfg["extra_maps_dir"]))
 
         self.current_rotation = "default"
+        self.newgame_last_used = datetime.now()
 
         self.mqtt = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,"q3client")
         self.mqtt.on_connect = self.on_mqtt_connect
@@ -298,15 +301,23 @@ class Q3Client(commands.Bot):
                 await ctx.channel.send("newgame is disabled in config")
                 return
             
-            if len(playmap) > 0:
-                # find the first map rotation containing it
-                for mr in self.map_rotations:
-                    if playmap in mr:
-                        await ctx.channel.send(f"Heading to {playmap}")
-                        await self.set_map_rotation(mr, changemap=False, randomize=True)
-                        self.rcon.execute(f"map {playmap}")
-                        await self.ensure_status(True)
-            else:
+            if self.newgame_last_used + NEWGAME_COOLDOWN > datetime.now():
+                await ctx.channel.send(f"need to wait {NEWGAME_COOLDOWN.total_seconds()} seconds between new games")
+                return
+            # start timer early
+            self.newgame_last_used = datetime.now()
+
+            found_map = False
+ 
+            for mr in self.map_rotations:
+                if playmap in mr:
+                    await ctx.channel.send(f"Heading to {playmap}")
+                    await self.set_map_rotation(mr, changemap=False, randomize=True)
+                    self.rcon.execute(f"map {playmap}")
+                    await self.ensure_status(True)
+                    found_map = True
+            
+            if not found_map:  # fallback
                 await ctx.channel.send(f"Heading to a random map in _{self.current_rotation}_")
                 await self.set_map_rotation(self.current_rotation, changemap=True, randomize=True)
 
