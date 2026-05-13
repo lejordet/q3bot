@@ -308,6 +308,8 @@ class Q3Client(commands.Bot):
             self.newgame_last_used = datetime.now()
 
             found_map = False
+            await ctx.channel.send("Starting a new game!")
+            await self.remove_bots()
  
             for mr in self.map_rotations:
                 if playmap in mr:
