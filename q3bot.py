@@ -4,7 +4,6 @@ import random
 from asyncio import sleep
 from collections import deque
 from pathlib import Path
-from fnmatch import fnmatch
 
 import discord
 import paho.mqtt.client as mqtt
