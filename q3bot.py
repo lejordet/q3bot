@@ -307,6 +307,7 @@ class Q3Client(commands.Bot):
                         self.rcon.execute(f"vstr {playmap}")
                         await self.ensure_status(True)
             else:
+                await ctx.channel.send(f"Heading to a random map in _{self.current_rotation}_")
                 self.set_map_rotation(self.current_rotation, changemap=True, randomize=True)
 
             await self.ensure_status(True)
