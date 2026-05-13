@@ -89,8 +89,8 @@ class Q3Client(commands.Bot):
         self.map_rotations = dict()
         self.map_rotations.update(MAP_ROTATIONS)
         if "extra_maps_dir" in self.cfg:
-            self.map_rotations["custom"] = load_custom_maps(self.cfg["extra_maps_dir"])
             self.map_rotations.update(load_custom_maprotations(self.cfg["extra_maps_dir"]))
+            self.map_rotations["custom"] = load_custom_maps(self.cfg["extra_maps_dir"])
 
         self.current_rotation = "default"
         self.newgame_last_used = datetime.now()
@@ -312,7 +312,7 @@ class Q3Client(commands.Bot):
             await self.remove_bots()
  
             for mr in self.map_rotations:
-                if playmap in mr:
+                if playmap in self.map_rotations[mr]:
                     await ctx.channel.send(f"Heading to {playmap}")
                     await self.set_map_rotation(mr, changemap=False, randomize=True)
                     self.rcon.execute(f"map {playmap}")
