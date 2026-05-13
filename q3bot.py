@@ -8,6 +8,7 @@ from fnmatch import fnmatch
 
 import discord
 import paho.mqtt.client as mqtt
+from bspp import bspp
 from dateutil.parser import parse
 from discord.ext import commands
 from xrcon.client import XRcon
@@ -37,25 +38,37 @@ MAP_IGNORE_FILE = ".mapignore"
 NEWGAME_COOLDOWN = timedelta(seconds=30)
 
 def load_custom_maps(path, only_include=None):
-    ignored_patterns = {"pak?", "*baseq3"}
+    ignored_patterns = {"pak?.pk3", "*baseq3.pk3"}
     if (Path(path) / ".mapignore").exists():
         in_patterns = (Path(path) / ".mapignore").read_text().splitlines()
         ignored_patterns.update({p for p in in_patterns if len(p.strip()) > 1})
         print(f"Loaded {len(in_patterns)}")
 
     pakfiles = [
-        a.stem.replace("map-", "")
-        for a in Path(path).iterdir()
+        a for a in Path(path).iterdir()
         if a.is_file() and a.suffix == ".pk3"
     ]
 
-    if only_include is not None:
-        pakfiles = [n for n in pakfiles if n in only_include]
-
     for ignore in ignored_patterns:
-        pakfiles = [n for n in pakfiles if not fnmatch(n, ignore)]
+        pakfiles = [n for n in pakfiles if not n.match(ignore)]
 
-    return sorted(pakfiles)
+    # then parse out actual maps
+    maps = set()
+
+    for pk in pakfiles:
+        try:
+            pk3 = bspp.process_pk3_file(pk)
+        except:
+            logger.error("unable to read %s", pk.stem)
+            continue
+
+        pk_maps = [bspp.pp_map(m).map_name for m in pk3.map_entities]
+        maps.update(pk_maps)
+
+    if only_include:
+        maps.intersection_update(only_include)
+
+    return sorted(maps)
 
 
 def load_custom_maprotations(path):

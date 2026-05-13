@@ -1,7 +1,8 @@
-paho-mqtt
-discord.py
-docker
-python-dateutil
-pytz
+paho-mqtt==2.1.0
+discord.py==2.7.1
+docker==7.1.0
+python-dateutil==2.9.0.post0
+pytz==2026.2
 git+https://github.com/lejordet/xrcon.git
-redis
+redis==7.4.0
+git+https://github.com/lejordet/bspp.git
