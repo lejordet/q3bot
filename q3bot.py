@@ -289,6 +289,11 @@ class Q3Client(commands.Bot):
     
         @self.command(name="newgame", pass_context=True)
         async def newgame(ctx, playmap: str = "RANDOM_MAP"):
+            """ Start a new game
+            
+            Args:
+                playmap: Go to a specific map
+            """
             if "disable_newgame" in self.cfg:
                 await ctx.channel.send("newgame is disabled in config")
                 return
@@ -303,6 +308,11 @@ class Q3Client(commands.Bot):
                         await self.ensure_status(True)
             else:
                 self.set_map_rotation(self.current_rotation, changemap=True, randomize=True)
+
+            await self.ensure_status(True)
+            await ctx.channel.send(
+                f"new game: {self.current_game['mapname']}"
+            )
 
 
         # self.add_command(status)
