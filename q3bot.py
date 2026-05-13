@@ -286,6 +286,24 @@ class Q3Client(commands.Bot):
             stats.parse_log()  # TODO: Cache so this can't be used to DOS?
             for text in stats.stats_text(since):
                 await ctx.channel.send(text)
+    
+        @self.command(name="newgame", pass_context=True)
+        async def newgame(ctx, playmap: str = "RANDOM_MAP"):
+            if "disable_newgame" in self.cfg:
+                await ctx.channel.send("newgame is disabled in config")
+                return
+            
+            if len(playmap) > 0:
+                # find the first map rotation containing it
+                for mr in self.map_rotations:
+                    if playmap in mr:
+                        await ctx.channel.send(f"Heading to {playmap}")
+                        self.set_map_rotation(mr, changemap=False, randomize=True)
+                        self.rcon.execute(f"vstr {playmap}")
+                        await self.ensure_status(True)
+            else:
+                self.set_map_rotation(self.current_rotation, changemap=True, randomize=True)
+
 
         # self.add_command(status)
         # self.add_command(maps)
@@ -445,7 +463,7 @@ class Q3Client(commands.Bot):
             randtext = ", randomized" if randomize else ""
             await channel.send(f"Changing to map rotation {rotaname}{randtext}")
 
-        if changemap and len(self.clients) > 1:
+        if changemap and len(self.clients) > 1 and "disabled_mapchange" in self.cfg:
             await channel.send(
                 f"{len(self.clients)} players online, won't change map on them!"
             )
