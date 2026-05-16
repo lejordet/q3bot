@@ -49,8 +49,8 @@ def load_mapnames_from_pk3(pk3: Path) -> set[str]:
     """
     try:
         pk = bspp.process_pk3_file(pk3)
-    except:
-        logger.error("unable to read %s", pk.stem)
+    except Exception as ex:
+        logger.error("unable to read %s (%s)", pk3.stem, ex)
         return []
 
     return [bspp.pp_map(m).map_name for m in pk.map_entities]
