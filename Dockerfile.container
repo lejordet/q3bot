@@ -7,6 +7,8 @@ RUN apt-get update \
 
 WORKDIR /app
 
+COPY uv.toml uv.toml
+
 COPY requirements.txt requirements.txt
 
 # Install dependencies with uv inside the image.
