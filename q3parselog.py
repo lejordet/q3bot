@@ -233,7 +233,7 @@ class Q3LogParse(object):
 
             output.write(
                 f"\n**{winner_}**: {wins} wins in {games} games"
-                f" ({100*frac:.0f}% win ratio)\n"
+                f" ({100 * frac:.0f}% win ratio)\n"
                 f"{map_part}"
                 f"{weap_part}"
             )

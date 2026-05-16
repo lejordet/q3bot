@@ -40,7 +40,7 @@ NEWGAME_COOLDOWN = timedelta(seconds=30)
 def load_mapnames_from_pk3(pk3: Path) -> set[str]:
     """
     Reads a .pk3, returns all map names found within
-    
+
     Args:
         pk3: Path to .pk3 file
 
@@ -64,7 +64,7 @@ def load_custom_maps(path: str, only_include=None):
         path: Directory to parse
         only_include: Optional list of maps to filter down to
     Returns:
-        Sorted list of unique maps found 
+        Sorted list of unique maps found
     """
     ignored_patterns = {"pak?.pk3", "*baseq3.pk3"}
     if (Path(path) / ".mapignore").exists():
@@ -72,10 +72,7 @@ def load_custom_maps(path: str, only_include=None):
         ignored_patterns.update({p for p in in_patterns if len(p.strip()) > 1})
         print(f"Loaded {len(in_patterns)}")
 
-    pakfiles = [
-        a for a in Path(path).iterdir()
-        if a.is_file() and a.suffix == ".pk3"
-    ]
+    pakfiles = [a for a in Path(path).iterdir() if a.is_file() and a.suffix == ".pk3"]
 
     for ignore in ignored_patterns:
         pakfiles = [n for n in pakfiles if not n.match(ignore)]
@@ -133,13 +130,15 @@ class Q3Client(commands.Bot):
         self.map_rotations = dict()
         self.map_rotations.update(MAP_ROTATIONS)
         if "extra_maps_dir" in self.cfg:
-            self.map_rotations.update(load_custom_maprotations(self.cfg["extra_maps_dir"]))
+            self.map_rotations.update(
+                load_custom_maprotations(self.cfg["extra_maps_dir"])
+            )
             self.map_rotations["custom"] = load_custom_maps(self.cfg["extra_maps_dir"])
 
         self.current_rotation = "default"
         self.newgame_last_used = datetime.now()
 
-        self.mqtt = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,"q3client")
+        self.mqtt = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, "q3client")
         self.mqtt.on_connect = self.on_mqtt_connect
         self.mqtt.on_message = self.on_mqtt_message
         self.mqtt.on_log = self.on_mqtt_log
@@ -271,8 +270,7 @@ class Q3Client(commands.Bot):
             logger.info(f"status requested: {ctx}")
             await self.ensure_status(True)
             await ctx.channel.send(
-                f"status: {len(self.clients)} players on "
-                f"{self.current_game['mapname']}"
+                f"status: {len(self.clients)} players on {self.current_game['mapname']}"
             )
             for _, cli in self.clients.items():
                 await ctx.channel.send(
@@ -333,20 +331,22 @@ class Q3Client(commands.Bot):
             stats.parse_log()  # TODO: Cache so this can't be used to DOS?
             for text in stats.stats_text(since):
                 await ctx.channel.send(text)
-    
+
         @self.command(name="newgame", pass_context=True)
         async def newgame(ctx, playmap: str = "RANDOM_MAP"):
-            """ Start a new game
-            
+            """Start a new game
+
             Args:
                 playmap: Go to a specific map
             """
             if "disable_newgame" in self.cfg:
                 await ctx.channel.send("newgame is disabled in config")
                 return
-            
+
             if self.newgame_last_used + NEWGAME_COOLDOWN > datetime.now():
-                await ctx.channel.send(f"need to wait {NEWGAME_COOLDOWN.total_seconds()} seconds between new games")
+                await ctx.channel.send(
+                    f"need to wait {NEWGAME_COOLDOWN.total_seconds()} seconds between new games"
+                )
                 return
             # start timer early
             self.newgame_last_used = datetime.now()
@@ -354,7 +354,7 @@ class Q3Client(commands.Bot):
             found_map = False
             await ctx.channel.send("Starting a new game!")
             await self.remove_bots()
- 
+
             for mr in self.map_rotations:
                 if playmap in self.map_rotations[mr]:
                     await ctx.channel.send(f"Heading to {playmap}")
@@ -362,16 +362,17 @@ class Q3Client(commands.Bot):
                     self.rcon.execute(f"map {playmap}")
                     await self.ensure_status(True)
                     found_map = True
-            
+
             if not found_map:  # fallback
-                await ctx.channel.send(f"Heading to a random map in _{self.current_rotation}_")
-                await self.set_map_rotation(self.current_rotation, changemap=True, randomize=True)
+                await ctx.channel.send(
+                    f"Heading to a random map in _{self.current_rotation}_"
+                )
+                await self.set_map_rotation(
+                    self.current_rotation, changemap=True, randomize=True
+                )
 
             await self.ensure_status(True)
-            await ctx.channel.send(
-                f"new game: {self.current_game['mapname']}"
-            )
-
+            await ctx.channel.send(f"new game: {self.current_game['mapname']}")
 
         # self.add_command(status)
         # self.add_command(maps)
@@ -469,10 +470,10 @@ class Q3Client(commands.Bot):
                 )
                 style = random.choice(STYLE_EMOJI)
                 if delta == -3 and "threefrags" not in self.current_game:
-                    self.msgs.append(f"THREE FRAGS LEFT {style*3}")
+                    self.msgs.append(f"THREE FRAGS LEFT {style * 3}")
                     self.current_game["threefrags"] = True
                 elif delta == -2 and "twofrags" not in self.current_game:
-                    self.msgs.append(f"TWO FRAGS LEFT {style*2}")
+                    self.msgs.append(f"TWO FRAGS LEFT {style * 2}")
                     self.current_game["twofrags"] = True
                 elif delta == -1 and "onefrag" not in self.current_game:
                     self.msgs.append(f"ONE FRAG LEFT {style}")
