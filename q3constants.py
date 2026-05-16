@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
-import pytz
 from dateutil.parser import parse
+import pytz
 
 TZ = pytz.timezone("Europe/Oslo")
 IX_WORLD = "1022"

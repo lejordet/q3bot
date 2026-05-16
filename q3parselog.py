@@ -1,10 +1,10 @@
+from io import StringIO
 import json
 import logging
 import operator
-from io import StringIO
 
-import redis
 from dateutil.parser import parse
+import redis
 
 from q3constants import CONFIG, IX_WORLD, MOD_TO_WEAPON, TZ, is_bot
 
@@ -111,9 +111,7 @@ class Q3LogParse(object):
                 self.games[curts]["kills"].setdefault(name_, dict()).setdefault(tgt_, 0)
                 self.games[curts]["kills"][name_][tgt_] += 1
                 if name_ != tgt_:  # only count actual kills
-                    self.games[curts]["weapons"].setdefault(name_, dict()).setdefault(
-                        mod, 0
-                    )
+                    self.games[curts]["weapons"].setdefault(name_, dict()).setdefault(mod, 0)
 
                     self.games[curts]["weapons"][name_][mod] += 1
 

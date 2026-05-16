@@ -1,17 +1,17 @@
-import json
-import logging
-import random
 from asyncio import sleep
 from collections import deque
+from datetime import datetime, timedelta
+import json
+import logging
 from pathlib import Path
+import random
 
-import discord
-import paho.mqtt.client as mqtt
 from bspp import bspp
 from dateutil.parser import parse
+import discord
 from discord.ext import commands
+import paho.mqtt.client as mqtt
 from xrcon.client import XRcon
-from datetime import datetime, timedelta
 
 from q3constants import BOTS, IX_WORLD, MAP_ROTATIONS, STYLE_EMOJI, TZ, parse_since
 from q3parselog import Q3LogParse, render_name
@@ -130,9 +130,7 @@ class Q3Client(commands.Bot):
         self.map_rotations = dict()
         self.map_rotations.update(MAP_ROTATIONS)
         if "extra_maps_dir" in self.cfg:
-            self.map_rotations.update(
-                load_custom_maprotations(self.cfg["extra_maps_dir"])
-            )
+            self.map_rotations.update(load_custom_maprotations(self.cfg["extra_maps_dir"]))
             self.map_rotations["custom"] = load_custom_maps(self.cfg["extra_maps_dir"])
 
         self.current_rotation = "default"
@@ -143,9 +141,7 @@ class Q3Client(commands.Bot):
         self.mqtt.on_message = self.on_mqtt_message
         self.mqtt.on_log = self.on_mqtt_log
 
-        self.mqtt.connect(
-            self.cfg.get("mqtt", "q3mosquitto")
-        )  # default to container name
+        self.mqtt.connect(self.cfg.get("mqtt", "q3mosquitto"))  # default to container name
 
         self.rcon = XRcon(
             self.cfg.get("rconip", "q3server"),
@@ -274,8 +270,7 @@ class Q3Client(commands.Bot):
             )
             for _, cli in self.clients.items():
                 await ctx.channel.send(
-                    f"> {cli.get('n', '<unknown>')}: "
-                    f"{cli.get('running_score', '0?')} kills"
+                    f"> {cli.get('n', '<unknown>')}: {cli.get('running_score', '0?')} kills"
                 )
 
         @self.command(name="maps", pass_context=True)
@@ -289,9 +284,7 @@ class Q3Client(commands.Bot):
             await ctx.channel.send(f"Current rotation: {self.current_rotation}")
 
         @self.command(name="maprotation", pass_context=True)
-        async def setrota(
-            ctx, rotations: str, immediate: bool = False, randomize: bool = False
-        ):
+        async def setrota(ctx, rotations: str, immediate: bool = False, randomize: bool = False):
             """Set a new map rotation
 
             Args:
@@ -364,12 +357,8 @@ class Q3Client(commands.Bot):
                     found_map = True
 
             if not found_map:  # fallback
-                await ctx.channel.send(
-                    f"Heading to a random map in _{self.current_rotation}_"
-                )
-                await self.set_map_rotation(
-                    self.current_rotation, changemap=True, randomize=True
-                )
+                await ctx.channel.send(f"Heading to a random map in _{self.current_rotation}_")
+                await self.set_map_rotation(self.current_rotation, changemap=True, randomize=True)
 
             await self.ensure_status(True)
             await ctx.channel.send(f"new game: {self.current_game['mapname']}")
@@ -418,9 +407,7 @@ class Q3Client(commands.Bot):
                     f"New game starting on {payload['mapname']} at {ts:%Y-%m-%d %H:%M}!"
                 )
             self.current_game.update(payload)
-            self.current_game["fraglimit"] = int(
-                self.current_game.get("fraglimit", 100)
-            )
+            self.current_game["fraglimit"] = int(self.current_game.get("fraglimit", 100))
             self.game = discord.Game(f"Quake3E on {payload['mapname']}")
             self.game_status_change = True
 
@@ -428,8 +415,7 @@ class Q3Client(commands.Bot):
         elif tokens[2] == "Exit":
             if any(self.clients):  # Only if players are connected
                 self.msgs.append(
-                    f"Game ended due to {payload['reason'].lower()[:-1]} "
-                    f"at {ts:%Y-%m-%d %H:%M}"
+                    f"Game ended due to {payload['reason'].lower()[:-1]} at {ts:%Y-%m-%d %H:%M}"
                 )
             self.current_game = dict()
         elif tokens[2] == "Score":
@@ -450,9 +436,7 @@ class Q3Client(commands.Bot):
                 name_ = payload["n"]
 
             # grab names while we have the chance
-            self.clients.setdefault(payload["targetid"], dict()).setdefault(
-                "n", payload["targetn"]
-            )
+            self.clients.setdefault(payload["targetid"], dict()).setdefault("n", payload["targetn"])
 
             cli = self.clients.setdefault(clidx, dict())
             cli.setdefault("running_score", 0)
@@ -465,9 +449,7 @@ class Q3Client(commands.Bot):
                 if cli["running_score"] > 0 and (cli["running_score"] % 5) == 0:
                     if "n" in cli:
                         self.msgs.append(f"{cli['n']} has {cli['running_score']} kills")
-                delta = cli["running_score"] - int(
-                    self.current_game.get("fraglimit", 100)
-                )
+                delta = cli["running_score"] - int(self.current_game.get("fraglimit", 100))
                 style = random.choice(STYLE_EMOJI)
                 if delta == -3 and "threefrags" not in self.current_game:
                     self.msgs.append(f"THREE FRAGS LEFT {style * 3}")
@@ -494,38 +476,26 @@ class Q3Client(commands.Bot):
             if payload["action"] == "Disconnect":
                 del self.clients[clidx]
                 clicount = len(self.clients)
-                serverstate = (
-                    f"{clicount} players online" if clicount > 0 else "server empty"
-                )
+                serverstate = f"{clicount} players online" if clicount > 0 else "server empty"
 
                 self.autobots_change = False
-                self.msgs.append(
-                    f"{render_name(cli.get('n'))} disconnected, {serverstate}"
-                )
+                self.msgs.append(f"{render_name(cli.get('n'))} disconnected, {serverstate}")
             elif payload["action"] == "Begin":
                 pass  # we trigger on receiving the name instead
             elif payload["action"] == "Connect":
                 pass
             elif payload["action"] == "InfoChanged":
                 if prev_name is not None and prev_name != cli["n"]:
-                    self.msgs.append(
-                        f"{prev_name} changed name to {render_name(cli.get('n'))}"
-                    )
+                    self.msgs.append(f"{prev_name} changed name to {render_name(cli.get('n'))}")
             if prev_name is None and "n" in payload:
                 clicount = len(self.clients)
-                serverstate = (
-                    f"{clicount} players online" if clicount > 0 else "server empty"
-                )
+                serverstate = f"{clicount} players online" if clicount > 0 else "server empty"
                 self.autobots_change = True
-                self.msgs.append(
-                    f"{render_name(cli.get('n'))} joined the game, {serverstate}"
-                )
+                self.msgs.append(f"{render_name(cli.get('n'))} joined the game, {serverstate}")
 
         return True
 
-    async def set_map_rotation(
-        self, rotaname, changemap=False, randomize=True, quiet=False
-    ):
+    async def set_map_rotation(self, rotaname, changemap=False, randomize=True, quiet=False):
         await self.wait_until_ready()
         channel = self.get_channel(int(self.cfg["channel"]))
         if not quiet:
@@ -533,9 +503,7 @@ class Q3Client(commands.Bot):
             await channel.send(f"Changing to map rotation {rotaname}{randtext}")
 
         if changemap and len(self.clients) > 1 and "disabled_mapchange" in self.cfg:
-            await channel.send(
-                f"{len(self.clients)} players online, won't change map on them!"
-            )
+            await channel.send(f"{len(self.clients)} players online, won't change map on them!")
             changemap = False
 
         # build the map list
@@ -569,9 +537,7 @@ class Q3Client(commands.Bot):
             self.rcon.execute(immediate)
             if not quiet:
                 await channel.send(f"Next map set to {rota[0]}")
-            self.rcon.execute(
-                f"say Map rotation changed to {rotaname}, next map is {rota[0]}"
-            )
+            self.rcon.execute(f"say Map rotation changed to {rotaname}, next map is {rota[0]}")
         else:
             await channel.send(f"Immediately changing to {rota[0]}")
             self.rcon.execute(immediate)

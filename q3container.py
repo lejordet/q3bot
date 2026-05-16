@@ -1,6 +1,6 @@
+from io import BytesIO
 import json
 import logging
-from io import BytesIO
 
 import docker
 import paho.mqtt.client as mqtt
@@ -88,7 +88,7 @@ def parse_combined_line(line):
     keys = fixed[::2]
     values = fixed[1::2]
 
-    return dict(zip(keys, values))
+    return dict(zip(keys, values, strict=False))
 
 
 def parse_scores(line):
