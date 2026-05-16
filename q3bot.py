@@ -36,7 +36,36 @@ logger = logging.getLogger(__name__)
 MAP_IGNORE_FILE = ".mapignore"
 NEWGAME_COOLDOWN = timedelta(seconds=30)
 
-def load_custom_maps(path, only_include=None):
+
+def load_mapnames_from_pk3(pk3: Path) -> set[str]:
+    """
+    Reads a .pk3, returns all map names found within
+    
+    Args:
+        pk3: Path to .pk3 file
+
+    Returns:
+        Set of all map names found
+    """
+    try:
+        pk = bspp.process_pk3_file(pk3)
+    except:
+        logger.error("unable to read %s", pk.stem)
+        return []
+
+    return [bspp.pp_map(m).map_name for m in pk.map_entities]
+
+
+def load_custom_maps(path: str, only_include=None):
+    """
+    Finds a list of custom maps from the extra_maps_folder
+
+    Args:
+        path: Directory to parse
+        only_include: Optional list of maps to filter down to
+    Returns:
+        Sorted list of unique maps found 
+    """
     ignored_patterns = {"pak?.pk3", "*baseq3.pk3"}
     if (Path(path) / ".mapignore").exists():
         in_patterns = (Path(path) / ".mapignore").read_text().splitlines()
@@ -55,13 +84,7 @@ def load_custom_maps(path, only_include=None):
     maps = set()
 
     for pk in pakfiles:
-        try:
-            pk3 = bspp.process_pk3_file(pk)
-        except:
-            logger.error("unable to read %s", pk.stem)
-            continue
-
-        pk_maps = [bspp.pp_map(m).map_name for m in pk3.map_entities]
+        pk_maps = load_mapnames_from_pk3(pk)
         maps.update(pk_maps)
 
     if only_include:
@@ -70,7 +93,16 @@ def load_custom_maps(path, only_include=None):
     return sorted(maps)
 
 
-def load_custom_maprotations(path):
+def load_custom_maprotations(path: str):
+    """
+    Finds .maprotation files, which are line-by-line taken as map names; returns found data
+
+    Args:
+        path: Path to search
+
+    Returns:
+        dict of actual file stem -> maps found
+    """
     rotations = {}
     for f in Path(path).glob("*.maprotation"):
         rota = load_custom_maps(path, f.read_text().splitlines())
