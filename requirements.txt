@@ -4,5 +4,5 @@ docker==7.2.0
 python-dateutil==2.9.0.post0
 pytz==2026.3.post1
 git+https://github.com/lejordet/xrcon.git@ad4e5bc34ae70fb66ee6d755854f459cd28ee51d
-redis==8.0.1
+redis==8.1.0
 git+https://github.com/lejordet/bspp.git@0136e80f28d9e09caf09f0d4e68d4d68dd20f751
