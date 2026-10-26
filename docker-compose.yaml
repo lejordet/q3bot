@@ -17,7 +17,9 @@ services:
     expose:
     - "6379"
   q3server:
-    image: bademux/quake3e-server:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.quake3e
     container_name: q3server
     hostname: q3server
     volumes:
