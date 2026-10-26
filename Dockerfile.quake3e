@@ -1,0 +1,17 @@
+FROM alpine:3.24.3 AS caching-downloader
+ADD https://github.com/ec-/Quake3e/archive/refs/tags/latest.tar.gz /target.tar.gz
+
+FROM alpine:3.24.3 AS builder
+RUN apk add --no-cache linux-headers build-base curl-dev bash
+COPY --from=caching-downloader /target.tar.gz /tmp/target.tar.gz
+WORKDIR /build
+RUN tar -xzf /tmp/target.tar.gz --strip-components=1 \
+    && make install -j"$(nproc)" BUILD_SERVER=1 BUILD_CLIENT=0 DESTDIR=. TARGET_SERVER=quake3e.ded
+
+# mount pk3 into /home/user/baseq3 and cfg into /home/user
+FROM alpine:3.24.3
+COPY --from=builder /build/quake3e.ded /usr/local/bin/quake3e.ded
+EXPOSE 27960/udp
+RUN adduser user --disabled-password
+USER user
+ENTRYPOINT ["quake3e.ded", "+set fs_homepath /home/user", "+set net_port 27960"]
